@@ -1,0 +1,86 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Lichtschnitzel",
+        "description": "Adresse der Lampe, z. B. lichtschnitzel-a1b2c3.local. Das Passwort ist nur nötig, wenn die Lampe eins für die Steuerung hat.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "password": "Passwort"
+        }
+      },
+      "confirm": {
+        "description": "{name} unter {host} einrichten? Das Passwort ist nur nötig, wenn die Lampe eins für die Steuerung hat.",
+        "data": {
+          "password": "Passwort"
+        }
+      },
+      "reauth_confirm": {
+        "description": "Die Lampe hat das gespeicherte Passwort abgelehnt. Bitte das Passwort für die Steuerung eingeben.",
+        "data": {
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Die Lampe ist nicht erreichbar.",
+      "invalid_auth": "Falsches Passwort.",
+      "password_needed": "Die Lampe braucht ein Passwort für die Steuerung.",
+      "unknown": "Die Lampe hat mit einem Fehler geantwortet."
+    },
+    "abort": {
+      "already_configured": "Diese Lampe ist schon eingerichtet.",
+      "cannot_connect": "Die Lampe ist nicht erreichbar.",
+      "reauth_successful": "Passwort aktualisiert."
+    }
+  },
+  "entity": {
+    "button": {
+      "save": {
+        "name": "Zustand speichern"
+      }
+    },
+    "sensor": {
+      "led_current": {
+        "name": "LED-Strom"
+      },
+      "led_budget": {
+        "name": "Strombudget"
+      },
+      "dimming": {
+        "name": "Strombegrenzung"
+      },
+      "supply_voltage": {
+        "name": "USB-PD-Spannung"
+      },
+      "supply_current": {
+        "name": "USB-PD-Strom"
+      },
+      "input_current": {
+        "name": "Eingangsstrom"
+      },
+      "wifi_signal": {
+        "name": "WLAN-Signal"
+      },
+      "started": {
+        "name": "Gestartet"
+      },
+      "heap_free": {
+        "name": "Freier Heap"
+      },
+      "late_frames": {
+        "name": "Verspätete Frames"
+      }
+    },
+    "binary_sensor": {
+      "efuse": {
+        "name": "eFuse ausgelöst"
+      },
+      "rails": {
+        "name": "Versorgung"
+      }
+    }
+  }
+}
