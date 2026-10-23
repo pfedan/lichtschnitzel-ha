@@ -24,6 +24,7 @@ class LichtschnitzelHub:
 
     def __init__(self, client: LichtschnitzelClient) -> None:
         self.client = client
+        self.ident: str | None = None  # the config entry's unique id
         self.info: dict = {}
         self.effects: list[dict] = []
         self.tree: dict = {}

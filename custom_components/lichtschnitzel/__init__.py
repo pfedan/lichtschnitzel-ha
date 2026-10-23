@@ -67,6 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntr
         entry.data.get(CONF_PASSWORD) or None,
     )
     hub = LichtschnitzelHub(client)
+    hub.ident = entry.unique_id
     try:
         await hub.async_load()
     except AuthFailed as err:

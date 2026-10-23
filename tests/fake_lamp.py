@@ -38,6 +38,7 @@ class FakeLamp:
         self.tokens: set[str] = set()
         self.revision = 0
         self.uptime = 100
+        self.info_id = "aa:bb:cc:dd:ee:ff"
         self.clients: set[web.WebSocketResponse] = set()
         self.writes: list[tuple[str, object]] = []
         fbm = {f"Screen {i}": screen(0, 0, UINT_MAX) for i in range(16)}
@@ -100,7 +101,7 @@ class FakeLamp:
         return web.json_response({"error": "auth", "scope": "control"}, status=401)
 
     def info_json(self) -> dict:
-        d = {"name": "Testlampe", "id": "aa:bb:cc:dd:ee:ff", "version": "1.2.3", "api": 1, "uptimeS": self.uptime,
+        d = {"name": "Testlampe", "id": self.info_id, "version": "1.2.3", "api": 1, "uptimeS": self.uptime,
              "revision": self.revision, "lateFrames": 0, "heapFree": 100000,
              "power": {"estimatedMa": 1234, "budgetMa": 3000, "scale": 1.0},
              "wifi": {"state": "connected", "rssi": -60}}
