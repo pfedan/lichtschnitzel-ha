@@ -1,9 +1,9 @@
 {
   "domain": "lichtschnitzel",
   "name": "Lichtschnitzel",
+  "after_dependencies": ["frontend", "http"],
   "codeowners": ["@pfedan"],
   "config_flow": true,
-  "after_dependencies": ["frontend", "http"],
   "dependencies": [],
   "documentation": "https://github.com/pfedan/lichtschnitzel-ha",
   "integration_type": "device",
