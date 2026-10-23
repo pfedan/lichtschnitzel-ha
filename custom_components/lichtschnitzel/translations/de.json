@@ -82,5 +82,29 @@
         "name": "Versorgung"
       }
     }
+  },
+  "services": {
+    "set_parameter": {
+      "name": "Effekt-Parameter setzen",
+      "description": "Setzt einen Parameter des Effekts, den ein Screen zeigt, z. B. Speed oder eine Farbe. Werte werden auf die Grenzen des Parameters begrenzt.",
+      "fields": {
+        "parameter": {
+          "name": "Parameter",
+          "description": "Name des Parameters wie im Attribut \"parameters\" der Leuchte, z. B. Speed oder Flying Emitters/Period Length."
+        },
+        "value": {
+          "name": "Wert",
+          "description": "Eine Zahl, oder eine Farbe als [r, g, b] oder #rrggbb."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_a_screen": {
+      "message": "{entity} ist kein Screen einer Lichtschnitzel-Lampe."
+    },
+    "bad_parameter": {
+      "message": "Parameter nicht gesetzt: {error}"
+    }
   }
 }

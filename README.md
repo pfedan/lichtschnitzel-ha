@@ -26,6 +26,33 @@ Effektparameter-Entities hängen an Screen und Effekt (`number.<lampe>_flur_auro
 
 Braucht die Firmware mit `On`, `Brightness`, `Label` und `revision` (lichtschnitzel ab dem PR „Home Assistant: An/Aus, Helligkeit, Namen“). Ältere Firmware geht auch, dann ohne Helligkeit; Aus setzt dort den Effekt auf „keiner“.
 
+## Die Lichtschnitzel-Karte
+
+Die Integration bringt eine Dashboard-Karte mit, die Home Assistant von selbst lädt (keine Ressource von Hand eintragen). Sie zeigt je Screen An/Aus, Helligkeit, den Effekt und darunter die Parameter des Effekts, der gerade läuft: Regler für Zahlen, Farbwähler für Farben. Wechselt der Effekt, wechseln die Regler mit. Die Parameter-Entities müssen dafür nicht aktiviert sein.
+
+```yaml
+type: custom:lichtschnitzel-card
+title: Wohnzimmer          # optional
+entities:                  # oder entity: light.lampe_screen_0
+  - light.lampe_screen_0
+  - light.lampe_screen_1
+```
+
+Nach dem Update der Integration einmal die Seite im Browser neu laden, damit die neue Karte ankommt.
+
+Die Karte nutzt das Attribut `parameters` der Screen-Leuchte (Name, Typ, Wert, Grenzen; nicht in der Datenbank gespeichert) und den Dienst `lichtschnitzel.set_parameter`, der auch in Automationen geht:
+
+```yaml
+action: lichtschnitzel.set_parameter
+target:
+  entity_id: light.lampe_screen_0
+data:
+  parameter: Speed           # Unterobjekte mit /, z. B. Flying Emitters/Period Length
+  value: 1.5                 # Farben als [r, g, b] oder "#rrggbb"
+```
+
+Der Wert wird auf die Grenzen des Parameters begrenzt. Zeigt der Screen den Effekt eines anderen Screens, setzt der Dienst den Parameter dort.
+
 ## Ohne Lampe testen: das Effektlabor als Lampe
 
 Das Effektlabor (der digitale Zwilling im Browser) lässt sich über eine kleine Brücke als Lampe ins Netz stellen:
@@ -35,6 +62,8 @@ python3 firmware-esp32/tools/lab_bridge.py      # im lichtschnitzel-Repo, Port 8
 ```
 
 Dann im Labor (Panel „Web-UI der Lampe“ → „Im Netz“) mit `ws://127.0.0.1:8081/lab` verbinden, oder das Labor mit `?bridge=ws://127.0.0.1:8081/lab` öffnen. In Home Assistant die Adresse dieses Rechners mit Port 8081 eintragen; mit `pip install zeroconf` wird die Brücke auch automatisch gefunden. Die Brücke muss auf dem Rechner laufen, auf dem der Browser läuft.
+
+Die 3D-Szenen (`scenes.html`) verbinden sich genauso; die Adresse merkt sich der Browser, so übernimmt die Szenen-Seite die Verbindung vom Labor und umgekehrt. Wechselst du die Szene, startet die Lampe neu: Home Assistant verbindet sich neu und übernimmt die Screens, Namen und Effekte der neuen Szene.
 
 ## Entwicklung
 

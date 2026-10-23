@@ -1,0 +1,16 @@
+set_parameter:
+  target:
+    entity:
+      integration: lichtschnitzel
+      domain: light
+  fields:
+    parameter:
+      required: true
+      example: Speed
+      selector:
+        text:
+    value:
+      required: true
+      example: 1.5
+      selector:
+        object:
