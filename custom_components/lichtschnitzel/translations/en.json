@@ -1,0 +1,86 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Lichtschnitzel",
+        "description": "Address of the lamp, e.g. lichtschnitzel-a1b2c3.local. The password is only needed if the lamp has one for control.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "password": "Password"
+        }
+      },
+      "confirm": {
+        "description": "Set up {name} at {host}? The password is only needed if the lamp has one for control.",
+        "data": {
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "description": "The lamp refused the stored password. Enter the password for control.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "The lamp is not reachable.",
+      "invalid_auth": "Wrong password.",
+      "password_needed": "The lamp needs a password for control.",
+      "unknown": "The lamp answered with an error."
+    },
+    "abort": {
+      "already_configured": "This lamp is already set up.",
+      "cannot_connect": "The lamp is not reachable.",
+      "reauth_successful": "Password updated."
+    }
+  },
+  "entity": {
+    "button": {
+      "save": {
+        "name": "Save state"
+      }
+    },
+    "sensor": {
+      "led_current": {
+        "name": "LED current"
+      },
+      "led_budget": {
+        "name": "Current budget"
+      },
+      "dimming": {
+        "name": "Current limit scale"
+      },
+      "supply_voltage": {
+        "name": "USB-PD voltage"
+      },
+      "supply_current": {
+        "name": "USB-PD current"
+      },
+      "input_current": {
+        "name": "Input current"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "started": {
+        "name": "Started"
+      },
+      "heap_free": {
+        "name": "Free heap"
+      },
+      "late_frames": {
+        "name": "Late frames"
+      }
+    },
+    "binary_sensor": {
+      "efuse": {
+        "name": "eFuse tripped"
+      },
+      "rails": {
+        "name": "Supply rails"
+      }
+    }
+  }
+}
