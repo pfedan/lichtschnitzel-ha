@@ -11,7 +11,7 @@ from typing import Any
 import aiohttp
 
 from .api import AuthFailed, LichtschnitzelClient, LichtschnitzelError
-from .const import FBM, NO_EFFECT, NUM_SCREENS
+from .const import FBM, NO_EFFECT, NUM_SCREENS, PARAM_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,7 +64,10 @@ class LichtschnitzelHub:
         while True:
             try:
                 if not first:
+                    # After a reboot the lamp may be another one: the Effektlabor switches to a 3D
+                    # scene with other screens, names and effects. Entities follow the new tree.
                     await self.async_load()
+                    self._tree_changed()
                 first = False
                 self._ws = await self.client.ws_connect()
                 self._set_connected(True)
@@ -143,6 +146,9 @@ class LichtschnitzelHub:
         except LichtschnitzelError as err:
             _LOGGER.debug("Lichtschnitzel %s: tree: %s", self.client.host, err)
             return
+        self._tree_changed()
+
+    def _tree_changed(self) -> None:
         for cb in list(self._tree_listeners):
             cb()
         self._notify()
@@ -189,6 +195,43 @@ class LichtschnitzelHub:
         idx = self.value(f"{self.screen_path(self.source_of(i))}/EffectIndex", NO_EFFECT)
         return next((e for e in self.effects if e.get("index") == idx), None)
 
+    def effect_base(self, i: int) -> str | None:
+        """Path of the instance screen i shows (in its source screen), None without an effect."""
+        e = self.effect_of(i)
+        if e is None:
+            return None
+        path = f"{self.screen_path(self.source_of(i))}/Effects/{e['key']}"
+        return path if isinstance(self.node(path), dict) else None
+
+    def parameters(self, i: int) -> list[dict]:
+        """The parameters of the effect screen i shows: key (path inside the instance), type, value,
+        and min/max for numbers. Sub-objects (e.g. "Flying Emitters") give keys like "a/b"."""
+        base = self.effect_base(i)
+        out: list[dict] = []
+        if base is None:
+            return out
+
+        def walk(node: dict, prefix: str) -> None:
+            for key, p in node.items():
+                if key == "name" or not isinstance(p, dict) or p.get("internal"):
+                    continue
+                kind = p.get("type")
+                if kind == "pobj":
+                    walk(p, prefix + key + "/")
+                elif kind in PARAM_TYPES:
+                    item = {"key": prefix + key, "type": kind, "value": p.get("val")}
+                    if kind != "Rgb":
+                        item["min"] = p.get("min", 0)
+                        item["max"] = p.get("max", 255)
+                    if kind == "float":  # the lamp's floats are 32 bit: 0.1 arrives as 0.10000000149
+                        for k in ("value", "min", "max"):
+                            if isinstance(item[k], (int, float)):
+                                item[k] = float(f"{item[k]:.7g}")
+                    out.append(item)
+
+        walk(self.node(base), "")
+        return out
+
     # ---- writes
     async def async_set(self, path: str, value: Any) -> None:
         node = self.node(path)
@@ -200,6 +243,24 @@ class LichtschnitzelHub:
             ans = await self.client.set_property(path, value)
             self._on_changed(ans.get("path", path), ans.get("value", value))
         self._notify()
+
+    async def async_set_parameter(self, i: int, key: str, value: Any) -> None:
+        """Sets a parameter of the effect screen i shows, clamped to its limits. Raises ValueError
+        for a parameter the effect does not have, or a value that does not fit its type."""
+        param = next((p for p in self.parameters(i) if p["key"] == key), None)
+        if param is None:
+            raise ValueError(f"no parameter {key!r} in the current effect")
+        if param["type"] == "Rgb":
+            if isinstance(value, str):
+                value = value.lstrip("#")
+                value = [int(value[n : n + 2], 16) for n in (0, 2, 4)] if len(value) == 6 else None
+            if not isinstance(value, (list, tuple)) or len(value) != 3:
+                raise ValueError("a colour is [r, g, b] or #rrggbb")
+            value = [max(0, min(255, int(c))) for c in value]
+        else:
+            value = max(param["min"], min(param["max"], float(value)))
+            value = int(round(value)) if param["type"] == "uint32" else value
+        await self.async_set(f"{self.effect_base(i)}/{key}", value)
 
     # ---- listeners
     def add_listener(self, cb: Callable[[], None]) -> Callable[[], None]:

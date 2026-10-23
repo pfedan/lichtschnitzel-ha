@@ -13,10 +13,11 @@ from homeassistant.components.light import (
     LightEntityFeature,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import LichtschnitzelConfigEntry
-from .const import FBM, NO_EFFECT
+from .const import DOMAIN, FBM, NO_EFFECT
 from .entity import LichtschnitzelEntity, ScreenEntity, new_screens
 from .params import EffectParameter, ParameterTracker
 from .hub import LichtschnitzelHub
@@ -38,7 +39,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntr
     entry.async_on_unload(hub.add_tree_listener(discover))
 
 
-class LampLight(LichtschnitzelEntity, LightEntity):
+class NoParameters:
+    async def async_set_parameter(self, parameter: str, value: Any) -> None:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="not_a_screen", translation_placeholders={"entity": self.entity_id}
+        )
+
+
+class LampLight(NoParameters, LichtschnitzelEntity, LightEntity):
     """The master switch: off pauses all effects, the brightness scales every screen."""
 
     _attr_name = None  # the device's name
@@ -69,9 +77,12 @@ class LampLight(LichtschnitzelEntity, LightEntity):
 
 
 class ScreenLight(ScreenEntity, LightEntity):
-    """A screen: on/off (off frees the effect instance, its parameters are kept), brightness, effect."""
+    """A screen: on/off (off frees the effect instance, its parameters are kept), brightness, effect.
+    The parameters of the effect it shows are an attribute, for the Lichtschnitzel card; the
+    service lichtschnitzel.set_parameter sets them."""
 
     _attr_supported_features = LightEntityFeature.EFFECT
+    _unrecorded_attributes = frozenset({"parameters", "screen"})
 
     def __init__(self, hub: LichtschnitzelHub, screen: int) -> None:
         super().__init__(hub, screen, "light", None)
@@ -107,8 +118,20 @@ class ScreenLight(ScreenEntity, LightEntity):
         e = self.hub.effect_of(self.screen)
         return e["name"] if e else None
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"screen": self.screen, "parameters": self.hub.parameters(self.screen)}
+
     def _snapshot(self) -> object:
-        return (self.available, self.is_on, self.brightness, self.effect, self.name)
+        return (self.available, self.is_on, self.brightness, self.effect, self.name, self.extra_state_attributes)
+
+    async def async_set_parameter(self, parameter: str, value: Any) -> None:
+        try:
+            await self.hub.async_set_parameter(self.screen, parameter, value)
+        except ValueError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="bad_parameter", translation_placeholders={"error": str(err)}
+            ) from err
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if ATTR_EFFECT in kwargs:
@@ -132,7 +155,7 @@ class ScreenLight(ScreenEntity, LightEntity):
             await self.hub.async_set(f"{self.base}/EffectIndex", NO_EFFECT)
 
 
-class ColorParameter(EffectParameter, LightEntity):
+class ColorParameter(NoParameters, EffectParameter, LightEntity):
     """A colour of an effect, e.g. "myColor" of SingleColorEffect. Off is black."""
 
     _attr_color_mode = ColorMode.RGB

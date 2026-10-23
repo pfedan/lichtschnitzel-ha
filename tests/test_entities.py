@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from .fake_lamp import FakeLamp
@@ -87,3 +89,38 @@ async def test_unavailable_and_back(hass: HomeAssistant, lamp: FakeLamp, entry) 
         await ws.close()
     await wait_for(hass, lambda: hass.states.get("light.testlampe_screen_0").state == "unavailable")
     await connected(hass)
+
+
+async def test_effect_parameters_of_a_screen(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    """The parameters attribute and lichtschnitzel.set_parameter, which the Lichtschnitzel card uses."""
+    await connected(hass)
+    params = hass.states.get("light.testlampe_screen_0").attributes["parameters"]
+    assert {p["key"]: p for p in params}["Speed"] == {"key": "Speed", "type": "float", "value": 1.0, "min": 0.2, "max": 3.0}
+    assert [p["key"] for p in hass.states.get("light.testlampe_screen_1").attributes["parameters"]] == ["myColor"]
+
+    async def set_param(entity: str, parameter: str, value) -> None:
+        await hass.services.async_call(
+            "lichtschnitzel", "set_parameter", {"entity_id": entity, "parameter": parameter, "value": value}, blocking=True
+        )
+
+    await set_param("light.testlampe_screen_0", "Speed", 9)  # clamped to the maximum
+    await wait_for(hass, lambda: ("FramebufferManager/Screen 0/Effects/AuroraEffect/Speed", 3.0) in lamp.writes)
+    await set_param("light.testlampe_screen_0", "Palette", 1.6)
+    await wait_for(hass, lambda: ("FramebufferManager/Screen 0/Effects/AuroraEffect/Palette", 2) in lamp.writes)
+    await set_param("light.testlampe_screen_1", "myColor", "#102030")
+    await wait_for(hass, lambda: ("FramebufferManager/Screen 1/Effects/SingleColorEffect/myColor", [16, 32, 48]) in lamp.writes)
+    await wait_for(
+        hass,
+        lambda: hass.states.get("light.testlampe_screen_1").attributes["parameters"][0]["value"] == [16, 32, 48],
+    )
+
+    with pytest.raises(ServiceValidationError):
+        await set_param("light.testlampe_screen_0", "myColor", [1, 2, 3])  # not a parameter of Aurora
+    with pytest.raises(ServiceValidationError):
+        await set_param("light.testlampe", "Speed", 1)  # the master switch has no effect
+
+    # A screen showing another screen's effect sets the parameters of that instance.
+    await lamp.set("FramebufferManager/Screen 1/Source", 0)
+    await wait_for(hass, lambda: hass.states.get("light.testlampe_screen_1").attributes.get("effect") == "Aurora")
+    await set_param("light.testlampe_screen_1", "Speed", 0.5)
+    await wait_for(hass, lambda: ("FramebufferManager/Screen 0/Effects/AuroraEffect/Speed", 0.5) in lamp.writes)

@@ -82,5 +82,29 @@
         "name": "Supply rails"
       }
     }
+  },
+  "services": {
+    "set_parameter": {
+      "name": "Set effect parameter",
+      "description": "Sets a parameter of the effect a screen shows, e.g. Speed or a colour. Values are clamped to the parameter's limits.",
+      "fields": {
+        "parameter": {
+          "name": "Parameter",
+          "description": "Name of the parameter as in the light's \"parameters\" attribute, e.g. Speed or Flying Emitters/Period Length."
+        },
+        "value": {
+          "name": "Value",
+          "description": "A number, or a colour as [r, g, b] or #rrggbb."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_a_screen": {
+      "message": "{entity} is not a screen of a Lichtschnitzel lamp."
+    },
+    "bad_parameter": {
+      "message": "Cannot set the parameter: {error}"
+    }
   }
 }
