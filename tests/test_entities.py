@@ -124,3 +124,22 @@ async def test_effect_parameters_of_a_screen(hass: HomeAssistant, lamp: FakeLamp
     await wait_for(hass, lambda: hass.states.get("light.testlampe_screen_1").attributes.get("effect") == "Aurora")
     await set_param("light.testlampe_screen_1", "Speed", 0.5)
     await wait_for(hass, lambda: ("FramebufferManager/Screen 0/Effects/AuroraEffect/Speed", 0.5) in lamp.writes)
+
+
+async def test_another_lamp_after_reconnect(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    """The Effektlabor switching to a 3D scene: it drops the connection and comes back with another
+    id, other screens and names. The entities stay on the one device, new screens get entities."""
+    await connected(hass)
+    for ws in list(lamp.clients):
+        await ws.close()
+    lamp.info_id = "lz.scene.laube"
+    lamp.uptime = 1
+    fbm = lamp.tree["FramebufferManager"]
+    fbm["Screen 0"]["Label"]["val"] = "Pergola"
+    fbm["Screen 4"]["Length"]["val"] = 30
+    fbm["Screen 4"]["EffectIndex"]["val"] = 1
+    lamp.bind(4)
+    await wait_for(hass, lambda: hass.states.get("light.testlampe_screen_4") is not None, timeout=6)
+    assert hass.states.get("light.testlampe_screen_0").attributes["friendly_name"] == "Testlampe Pergola"
+    devices = {e.device_id for e in er.async_get(hass).entities.values() if e.config_entry_id == entry.entry_id}
+    assert len(devices) == 1

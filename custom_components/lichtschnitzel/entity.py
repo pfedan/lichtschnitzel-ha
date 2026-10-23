@@ -9,7 +9,9 @@ from .hub import LichtschnitzelHub
 
 
 def lamp_id(hub: LichtschnitzelHub) -> str:
-    return str(hub.info.get("id", hub.client.host))
+    # Fixed for the config entry: the Effektlabor reports another id for each 3D scene, its
+    # entities stay on the one device and follow the scene shown.
+    return hub.ident or str(hub.info.get("id", hub.client.host))
 
 
 class LichtschnitzelEntity(Entity):
