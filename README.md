@@ -14,6 +14,7 @@ Ein Gerät pro Lampe, darin:
 | --- | --- | --- |
 | Lampe | `light` | Hauptschalter und Master-Helligkeit (`FramebufferManager/On`, `Brightness`). Aus pausiert alle Effekte. |
 | Screen *n* (oder sein Name) | `light` | An/Aus, Helligkeit, Effekt aus der Effektliste. Aus gibt die Effekt-Instanz frei, die Parameter bleiben gemerkt. |
+| Szene | `select` | Die Szenen der Lampe (benannte Sätze aller Screens) nach Name; Auswählen schaltet um. Hat sich seit dem Umschalten ein Screen geändert, zeigt sie keine Auswahl (Attribut `modified`), so lässt sich die Szene erneut wählen. |
 | … nächstes Preset | `button` | `next-preset` des Screens |
 | … gespiegelt, … default values | `switch`, `button` | Konfiguration je Screen |
 | Effektparameter | `number`, Farben als `light` | je Screen, Effekt und Parameter; standardmäßig deaktiviert, in der Entity-Liste einschalten |
@@ -52,6 +53,20 @@ data:
 ```
 
 Der Wert wird auf die Grenzen des Parameters begrenzt. Zeigt der Screen den Effekt eines anderen Screens, setzt der Dienst den Parameter dort.
+
+## Szenen
+
+Szenen legt man in der Web-UI der Lampe an (Steuerung → Szenen). In Home Assistant schaltet die Entity `select.<lampe>_szene` um, in Automationen geht auch der Dienst `lichtschnitzel.activate_scene`, nach Index (0 bis 15) oder Name:
+
+```yaml
+action: lichtschnitzel.activate_scene
+target:
+  entity_id: select.lampe_szene
+data:
+  name: Abend                # oder index: 2
+```
+
+Hauptschalter und Helligkeit der Lampe bleiben beim Umschalten, wie sie sind. Wie jede Änderung gilt eine Szene nach einem Neustart der Lampe erst, wenn sie gespeichert wurde („Zustand speichern“). Firmware ohne Szenen: die Entity ist `unavailable`.
 
 ## Ohne Lampe testen: das Effektlabor als Lampe
 

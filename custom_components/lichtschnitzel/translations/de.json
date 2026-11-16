@@ -81,6 +81,11 @@
       "rails": {
         "name": "Versorgung"
       }
+    },
+    "select": {
+      "scene": {
+        "name": "Szene"
+      }
     }
   },
   "services": {
@@ -97,6 +102,20 @@
           "description": "Eine Zahl, oder eine Farbe als [r, g, b] oder #rrggbb."
         }
       }
+    },
+    "activate_scene": {
+      "name": "Szene aktivieren",
+      "description": "Schaltet die Lampe auf eine ihrer Szenen (benannte Sätze aller Screens), nach Index oder Name. Wirkt wie jede Änderung sofort; nach einem Neustart gilt sie erst nach „Zustand speichern“.",
+      "fields": {
+        "index": {
+          "name": "Index",
+          "description": "Platz der Szene, 0 bis 15."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name der Szene; Groß- und Kleinschreibung von A bis Z ist egal."
+        }
+      }
     }
   },
   "exceptions": {
@@ -105,6 +124,12 @@
     },
     "bad_parameter": {
       "message": "Parameter nicht gesetzt: {error}"
+    },
+    "scene_index_or_name": {
+      "message": "Entweder Index oder Name der Szene angeben."
+    },
+    "no_scene": {
+      "message": "Die Lampe hat keine Szene {scene}."
     }
   }
 }

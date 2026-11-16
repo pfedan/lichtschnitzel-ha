@@ -28,6 +28,7 @@ class LichtschnitzelHub:
         self.info: dict = {}
         self.effects: list[dict] = []
         self.tree: dict = {}
+        self.scenes: dict | None = None  # GET /api/scenes, None on firmware without scenes
         self.connected = False
         self._listeners: list[Callable[[], None]] = []
         self._tree_listeners: list[Callable[[], None]] = []
@@ -42,6 +43,7 @@ class LichtschnitzelHub:
         self.info = await self.client.check_access()
         self.effects = await self.client.effects()
         self.tree = await self.client.tree()
+        self.scenes = await self.client.scenes()
         self._revision = self.info.get("revision")
 
     def start(self) -> None:
@@ -103,6 +105,9 @@ class LichtschnitzelHub:
                 self._on_status(data)
             elif kind == "changed":
                 self._on_changed(data.get("path", ""), data.get("value"))
+            elif kind == "scenes":
+                self.scenes = {k: v for k, v in data.items() if k != "type"}
+                self._notify()
             elif kind == "error" and data.get("error") == "auth":
                 # A lamp without a valid token for "control" says so and closes; log in for the next try.
                 self.client.token = None
@@ -114,6 +119,7 @@ class LichtschnitzelHub:
     def _on_status(self, data: dict) -> None:
         data = {k: v for k, v in data.items() if k != "type"}
         rebooted = self.info and data.get("uptimeS", 0) + 3 < self.info.get("uptimeS", 0)
+        self._on_scene_status(self.info.get("scene"), data.get("scene"))
         self.info.update(data)
         rev = data.get("revision")
         if rebooted or (rev is not None and rev != self._revision):
@@ -127,6 +133,54 @@ class LichtschnitzelHub:
             node["val"] = value
         if RELOAD_AFTER.match(path):
             self.reload_tree_soon()
+        self._notify()
+
+    def _on_scene_status(self, before: dict | None, now: dict | None) -> None:
+        """The scene part of the status: the active scene, and a counter that moves when the list changed."""
+        if not isinstance(now, dict):
+            return
+        if self.scenes is None or (isinstance(before, dict) and before.get("list") != now.get("list")):
+            asyncio.get_running_loop().create_task(self._reload_scenes())
+            return
+        self.scenes["active"] = now.get("index")
+        self.scenes["modified"] = bool(now.get("modified"))
+
+    async def _reload_scenes(self) -> None:
+        try:
+            self.scenes = await self.client.scenes()
+        except LichtschnitzelError as err:
+            _LOGGER.debug("Lichtschnitzel %s: scenes: %s", self.client.host, err)
+            return
+        self._notify()
+
+    # ---- scenes
+    def scene_names(self) -> list[str]:
+        return [s["name"] for s in (self.scenes or {}).get("scenes", [])]
+
+    def find_scene(self, index: int | None = None, name: str | None = None) -> dict | None:
+        """The scene with this index, or this name (exact, else ignoring case)."""
+        items = (self.scenes or {}).get("scenes", [])
+        if index is not None:
+            return next((s for s in items if s["index"] == index), None)
+        name = (name or "").strip()
+        return next((s for s in items if s["name"] == name), None) or next(
+            (s for s in items if s["name"].lower() == name.lower()), None
+        )
+
+    def active_scene(self) -> dict | None:
+        active = (self.scenes or {}).get("active")
+        return None if active is None else self.find_scene(index=active)
+
+    async def async_activate_scene(self, index: int | None = None, name: str | None = None) -> None:
+        """Switches to a scene. Raises ValueError for one the lamp does not have."""
+        scene = self.find_scene(index, name)
+        if scene is None:
+            raise ValueError(f"no scene {index if index is not None else name!r}")
+        await self.client.activate_scene(index=scene["index"])
+        if self.scenes is not None:
+            self.scenes["active"] = scene["index"]
+            self.scenes["modified"] = False
+        self.reload_tree_soon(0)  # all screens may have changed
         self._notify()
 
     def _set_connected(self, on: bool) -> None:

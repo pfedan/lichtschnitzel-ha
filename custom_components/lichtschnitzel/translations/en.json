@@ -81,6 +81,11 @@
       "rails": {
         "name": "Supply rails"
       }
+    },
+    "select": {
+      "scene": {
+        "name": "Scene"
+      }
     }
   },
   "services": {
@@ -97,6 +102,20 @@
           "description": "A number, or a colour as [r, g, b] or #rrggbb."
         }
       }
+    },
+    "activate_scene": {
+      "name": "Activate scene",
+      "description": "Switches the lamp to one of its scenes (named sets of all screens), by index or by name. Like every change it is live; the lamp starts with it only after Save state.",
+      "fields": {
+        "index": {
+          "name": "Index",
+          "description": "Place of the scene, 0 to 15."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name of the scene; upper and lower case of A to Z do not matter."
+        }
+      }
     }
   },
   "exceptions": {
@@ -105,6 +124,12 @@
     },
     "bad_parameter": {
       "message": "Cannot set the parameter: {error}"
+    },
+    "scene_index_or_name": {
+      "message": "Give either index or name of the scene."
+    },
+    "no_scene": {
+      "message": "The lamp has no scene {scene}."
     }
   }
 }

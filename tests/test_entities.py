@@ -143,3 +143,49 @@ async def test_another_lamp_after_reconnect(hass: HomeAssistant, lamp: FakeLamp,
     assert hass.states.get("light.testlampe_screen_0").attributes["friendly_name"] == "Testlampe Pergola"
     devices = {e.device_id for e in er.async_get(hass).entities.values() if e.config_entry_id == entry.entry_id}
     assert len(devices) == 1
+
+
+async def test_scenes(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    await connected(hass)
+    sel = "select.testlampe_scene"
+    await wait_for(hass, lambda: hass.states.get(sel) is not None and hass.states.get(sel).state != "unavailable")
+    assert hass.states.get(sel).attributes["options"] == []
+
+    # Scenes stored in the web UI arrive live.
+    await lamp.store_scene(0, "Alltag")
+    await lamp.set("FramebufferManager/Screen 0/Brightness", 40)
+    await lamp.set("FramebufferManager/Screen 1/Length", 0)
+    await lamp.store_scene(3, "Abend")
+    await wait_for(hass, lambda: hass.states.get(sel).attributes["options"] == ["Alltag", "Abend"])
+    assert hass.states.get(sel).state == "Abend"
+
+    # Choosing an option switches all screens.
+    await hass.services.async_call("select", "select_option", {"entity_id": sel, "option": "Alltag"}, blocking=True)
+    await wait_for(hass, lambda: hass.states.get(sel).state == "Alltag")
+    await wait_for(hass, lambda: hass.states.get("light.testlampe_screen_1").state != "unavailable")
+    assert lamp.scr(0)["Brightness"]["val"] == 255
+
+    # A change to a screen: no current option, so the scene can be chosen again.
+    await lamp.set("FramebufferManager/Screen 0/Brightness", 10)
+    await lamp.status()
+    await wait_for(hass, lambda: hass.states.get(sel).state == "unknown")
+    assert hass.states.get(sel).attributes["modified"] is True
+    assert hass.states.get(sel).attributes["active"] == "Alltag"
+
+    # The service by index and by name (ignoring case).
+    await hass.services.async_call("lichtschnitzel", "activate_scene", {"entity_id": sel, "index": 3}, blocking=True)
+    await wait_for(hass, lambda: hass.states.get(sel).state == "Abend")
+    assert lamp.scr(0)["Brightness"]["val"] == 40
+    await hass.services.async_call("lichtschnitzel", "activate_scene", {"entity_id": sel, "name": "alltag"}, blocking=True)
+    await wait_for(hass, lambda: hass.states.get(sel).state == "Alltag")
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call("lichtschnitzel", "activate_scene", {"entity_id": sel, "name": "Party"}, blocking=True)
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call("lichtschnitzel", "activate_scene", {"entity_id": sel}, blocking=True)
+
+
+async def test_firmware_without_scenes(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    lamp.scenes = None
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await connected(hass)
+    assert hass.states.get("select.testlampe_scene").state == "unavailable"
