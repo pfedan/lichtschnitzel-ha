@@ -1,4 +1,4 @@
-"""Buttons: next preset and default values per screen, save and restart for the lamp."""
+"""Buttons: next preset and default values per screen; save, restart and clearing all indicators for the lamp."""
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
@@ -9,11 +9,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import LichtschnitzelConfigEntry
 from .entity import LichtschnitzelEntity, ScreenEntity, new_screens
 from .hub import LichtschnitzelHub
+from .light import send_overlay
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntry, add: AddEntitiesCallback) -> None:
     hub = entry.runtime_data
-    add([SaveButton(hub), RestartButton(hub)])
+    add([SaveButton(hub), RestartButton(hub), ClearIndicatorsButton(hub)])
     done: set[int] = set()
 
     @callback
@@ -80,3 +81,16 @@ class RestartButton(LichtschnitzelEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.hub.client.reboot()
+
+
+class ClearIndicatorsButton(LichtschnitzelEntity, ButtonEntity):
+    """Clears every indicator on every screen of the lamp (POST /api/indicators/clear)."""
+
+    _attr_translation_key = "clear_indicators"
+    _attr_icon = "mdi:notification-clear-all"
+
+    def __init__(self, hub: LichtschnitzelHub) -> None:
+        super().__init__(hub, "clear-indicators")
+
+    async def async_press(self) -> None:
+        await send_overlay(self.hub.async_clear_indicator, None, {})

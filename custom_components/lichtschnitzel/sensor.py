@@ -79,6 +79,8 @@ SENSORS = (
                           native_unit_of_measurement=UnitOfInformation.KILOBYTES, entity_category=EntityCategory.DIAGNOSTIC,
                           entity_registry_enabled_default=False,
                           value=lambda i: None if i.get("heapFree") is None else i["heapFree"] // 1024),
+    LampSensorDescription(key="indicators", translation_key="indicators", state_class=SensorStateClass.MEASUREMENT,
+                          value=lambda i: i.get("indicators")),
     LampSensorDescription(key="late_frames", translation_key="late_frames", state_class=SensorStateClass.TOTAL_INCREASING,
                           entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False,
                           value=lambda i: i.get("lateFrames")),

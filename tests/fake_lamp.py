@@ -42,6 +42,7 @@ class FakeLamp:
         self.clients: set[web.WebSocketResponse] = set()
         self.writes: list[tuple[str, object]] = []
         self.notifications: list[dict] = []  # (path, body) of POST /api/notify and /api/indicators
+        self.indicator_count = 0  # "indicators" of /api/info
         self.can_notify = True  # False: firmware without notifications (404)
         # Scenes: index -> (name, screens); None for firmware without them.
         self.scenes: dict[int, tuple[str, dict]] | None = {}
@@ -114,7 +115,7 @@ class FakeLamp:
 
     def info_json(self) -> dict:
         d = {"name": "Testlampe", "id": self.info_id, "version": "1.2.3", "api": 1, "uptimeS": self.uptime,
-             "revision": self.revision, "lateFrames": 0, "heapFree": 100000,
+             "revision": self.revision, "lateFrames": 0, "heapFree": 100000, "indicators": self.indicator_count,
              "power": {"estimatedMa": 1234, "budgetMa": 3000, "scale": 1.0},
              "wifi": {"state": "connected", "rssi": -60}}
         if self.scenes is not None:

@@ -40,6 +40,9 @@
     "button": {
       "save": {
         "name": "Save state"
+      },
+      "clear_indicators": {
+        "name": "Clear indicators"
       }
     },
     "sensor": {
@@ -72,6 +75,9 @@
       },
       "late_frames": {
         "name": "Late frames"
+      },
+      "indicators": {
+        "name": "Indicators"
       }
     },
     "binary_sensor": {

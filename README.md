@@ -133,6 +133,8 @@ https://github.com/pfedan/lichtschnitzel-ha/blob/main/blueprints/automation/lich
 
 Dann pro Kopplung eine Automation daraus anlegen: Entity, aktiver Zustand (Standard `on`), Screens, eine eigene ID, Farbe, Muster, Helligkeit, Breite und Priorität. Die Automation setzt die Anzeige auch nach einem Neustart der Lampe oder von Home Assistant wieder.
 
+Alle Anzeigen auf einmal löscht der Knopf `button.<lampe>_anzeigen_loschen` (oder `lichtschnitzel.clear_indicator` auf die Leuchte der Lampe ohne ID), der Sensor `sensor.<lampe>_anzeigen` zählt die gesetzten Anzeigen. In der Web-UI der Lampe erscheint dafür ein Feld „Anzeigen“, solange welche gesetzt sind.
+
 Benachrichtigungen liegen kurz über den Anzeigen. Anzeigen werden nicht gespeichert: Nach einem Neustart der Lampe sind sie weg, bis die Automation sie wieder setzt.
 
 ## Ohne Lampe testen: das Effektlabor als Lampe

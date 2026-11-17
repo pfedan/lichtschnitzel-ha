@@ -40,6 +40,9 @@
     "button": {
       "save": {
         "name": "Zustand speichern"
+      },
+      "clear_indicators": {
+        "name": "Anzeigen löschen"
       }
     },
     "sensor": {
@@ -72,6 +75,9 @@
       },
       "late_frames": {
         "name": "Verspätete Frames"
+      },
+      "indicators": {
+        "name": "Anzeigen"
       }
     },
     "binary_sensor": {

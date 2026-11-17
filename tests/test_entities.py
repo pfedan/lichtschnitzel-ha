@@ -235,3 +235,12 @@ async def test_indicators(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
     assert lamp.notifications[-1] == ("/api/indicators/clear", {})
     with pytest.raises(vol.Invalid):  # an indicator needs an id
         await hass.services.async_call("lichtschnitzel", "set_indicator", {"entity_id": "light.testlampe_screen_0"}, blocking=True)
+
+
+async def test_clear_all_indicators(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    await connected(hass)
+    lamp.indicator_count = 3
+    await lamp.status()
+    await wait_for(hass, lambda: hass.states.get("sensor.testlampe_indicators").state == "3")
+    await hass.services.async_call("button", "press", {"entity_id": "button.testlampe_clear_indicators"}, blocking=True)
+    assert lamp.notifications[-1] == ("/api/indicators/clear", {})
