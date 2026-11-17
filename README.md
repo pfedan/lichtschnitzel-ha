@@ -68,6 +68,73 @@ data:
 
 Hauptschalter und Helligkeit der Lampe bleiben beim Umschalten, wie sie sind. Wie jede Änderung gilt eine Szene nach einem Neustart der Lampe erst, wenn sie gespeichert wurde („Zustand speichern“). Firmware ohne Szenen: die Entity ist `unavailable`.
 
+## Benachrichtigungen
+
+`lichtschnitzel.notify` lässt Screens kurz signalisieren, etwa wenn es klingelt, die Waschmaschine fertig ist oder der Fernseher angeht. Danach zeigt jeder Screen wieder genau das, was er vorher zeigte; am Zustand der Lampe ändert sich nichts. Ziel sind Screen-Leuchten (dieser Screen) oder die Leuchte der Lampe (alle Screens). Mehrere Screens einer Aktion starten gleichzeitig.
+
+```yaml
+automation:
+  - triggers:
+      - trigger: state
+        entity_id: binary_sensor.tuerklingel
+        to: "on"
+    actions:
+      - action: lichtschnitzel.notify
+        target:
+          entity_id: [light.lampe_flur, light.lampe_wohnzimmer]
+        data:
+          pattern: pulse         # flash, pulse, chase, solid
+          rgb_color: [255, 160, 0]
+          brightness_pct: 80
+          duration: 5            # Sekunden, 0 beendet die Benachrichtigung
+          start: -6              # optional: nur die letzten sechs LEDs des Screens
+```
+
+`period` (Sekunden) setzt die Geschwindigkeit von Blinken, Pulsieren und Lauflicht, `length` die Breite des Abschnitts. Die Benachrichtigung erscheint auch, wenn der Screen oder die Lampe aus ist, mit ihrer eigenen Helligkeit. Benachrichtigungen und Anzeigen brauchen eine Firmware ab lichtschnitzel#64.
+
+## Stehende Anzeigen
+
+`lichtschnitzel.set_indicator` zeigt ein Signal, bis `lichtschnitzel.clear_indicator` es wieder entfernt, etwa solange die Waschmaschine läuft. Jede Anzeige hat eine ID; dieselbe ID noch einmal ändert sie. Ein Screen kann mehrere Anzeigen gleichzeitig zeigen: Ohne `start` reihen sie sich vom Ende des Screens her auf (je `length` LEDs, Standard 3, mit einer dunklen LED dazwischen), höhere `priority` näher am Ende. Passt eine nicht mehr hin, wartet sie, bis Platz ist. Mit `start` sitzt sie an einem festen Abschnitt. `progress` (0 bis 100) macht daraus einen Balken.
+
+```yaml
+automation:
+  - triggers:
+      - trigger: state
+        entity_id: sensor.waschmaschine_restzeit
+    actions:
+      - action: lichtschnitzel.set_indicator
+        target:
+          entity_id: light.lampe_bad
+        data:
+          id: waschmaschine
+          rgb_color: [0, 120, 255]
+          pattern: pulse
+          length: 10
+          progress: "{{ 100 - states('sensor.waschmaschine_restzeit') | float(0) / 90 * 100 }}"
+  - triggers:
+      - trigger: state
+        entity_id: binary_sensor.waschmaschine_tuer
+        to: "on"
+    actions:
+      - action: lichtschnitzel.clear_indicator
+        target:
+          entity_id: light.lampe_bad
+        data:
+          id: waschmaschine
+```
+
+### Blueprint: Anzeige folgt einer Entity
+
+Für den häufigsten Fall (Anzeige an, solange ein Fenster offen ist oder ein Schalter an ist) gibt es einen Blueprint. Importieren unter Einstellungen → Automationen & Szenen → Blueprints → Blueprint importieren, mit dieser Adresse:
+
+```
+https://github.com/pfedan/lichtschnitzel-ha/blob/main/blueprints/automation/lichtschnitzel/indicator_from_state.yaml
+```
+
+Dann pro Kopplung eine Automation daraus anlegen: Entity, aktiver Zustand (Standard `on`), Screens, eine eigene ID, Farbe, Muster, Helligkeit, Breite und Priorität. Die Automation setzt die Anzeige auch nach einem Neustart der Lampe oder von Home Assistant wieder.
+
+Benachrichtigungen liegen kurz über den Anzeigen. Anzeigen werden nicht gespeichert: Nach einem Neustart der Lampe sind sie weg, bis die Automation sie wieder setzt.
+
 ## Ohne Lampe testen: das Effektlabor als Lampe
 
 Das Effektlabor (der digitale Zwilling im Browser) lässt sich über eine kleine Brücke als Lampe ins Netz stellen:

@@ -1,0 +1,113 @@
+blueprint:
+  name: Lichtschnitzel indicator from a state
+  description: >-
+    Shows a standing indicator on Lichtschnitzel screens while an entity is in a state (a window
+    open, the washer running) and clears it otherwise. Indicators are not saved on the lamp, so
+    this sets it again when the lamp or Home Assistant restarts. Several of these automations with
+    different IDs line up next to each other from the end of the screen.
+  domain: automation
+  source_url: https://github.com/pfedan/lichtschnitzel-ha/blob/main/blueprints/automation/lichtschnitzel/indicator_from_state.yaml
+  input:
+    source:
+      name: Entity
+      description: The entity to follow, e.g. a window sensor or a switch.
+      selector:
+        entity: {}
+    active_state:
+      name: Active state
+      description: While the entity is in this state the indicator shows.
+      default: "on"
+      selector:
+        text: {}
+    screens:
+      name: Screens
+      description: Screen lights of a Lichtschnitzel lamp, or the lamp's own light for all screens.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: lichtschnitzel
+              domain: light
+    indicator_id:
+      name: ID
+      description: A name for this indicator, different for every automation (1 to 23 characters).
+      selector:
+        text: {}
+    color:
+      name: Colour
+      default: [0, 120, 255]
+      selector:
+        color_rgb: {}
+    pattern:
+      name: Pattern
+      default: solid
+      selector:
+        select:
+          options:
+            - flash
+            - pulse
+            - chase
+            - solid
+    brightness:
+      name: Brightness
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+    length:
+      name: Width
+      description: LEDs of the indicator.
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    priority:
+      name: Priority
+      description: Higher sits nearer the end of the screen; when there is no room, lower ones wait.
+      default: 0
+      selector:
+        number:
+          min: -100
+          max: 100
+          mode: box
+
+mode: restart
+
+variables:
+  source: !input source
+  active_state: !input active_state
+
+triggers:
+  - trigger: state
+    entity_id: !input source
+  - trigger: state
+    entity_id: !input screens
+    from: unavailable
+  - trigger: homeassistant
+    event: start
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ is_state(source, active_state) }}"
+    then:
+      - action: lichtschnitzel.set_indicator
+        target:
+          entity_id: !input screens
+        data:
+          id: !input indicator_id
+          rgb_color: !input color
+          pattern: !input pattern
+          brightness_pct: !input brightness
+          length: !input length
+          priority: !input priority
+    else:
+      - action: lichtschnitzel.clear_indicator
+        target:
+          entity_id: !input screens
+        data:
+          id: !input indicator_id

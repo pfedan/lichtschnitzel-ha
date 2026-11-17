@@ -36,6 +36,7 @@ class LichtschnitzelHub:
         self._task: asyncio.Task | None = None
         self._reload: asyncio.TimerHandle | None = None
         self._revision: int | None = None
+        self._batches: dict[str, dict] = {}
 
     # ---- lifecycle
     async def async_load(self) -> None:
@@ -182,6 +183,46 @@ class LichtschnitzelHub:
             self.scenes["modified"] = False
         self.reload_tree_soon(0)  # all screens may have changed
         self._notify()
+
+    # ---- notifications and indicators
+    async def async_notify(self, screen: int | None, body: dict) -> None:
+        """Shows a notification on screen (None: every screen with LEDs)."""
+        await self._batched("/api/notify", screen, body)
+
+    async def async_set_indicator(self, screen: int | None, body: dict) -> None:
+        await self._batched("/api/indicators", screen, body)
+
+    async def async_clear_indicator(self, screen: int | None, body: dict) -> None:
+        await self._batched("/api/indicators/clear", screen, body)
+
+    async def _batched(self, path: str, screen: int | None, body: dict) -> None:
+        """POSTs body to path for screen. Calls with the same path and body that come together (one
+        action on several screens of this lamp) go out as one request with "screens", so the screens
+        start in step; a call for the whole lamp (screen None) leaves "screens" out."""
+        key = json.dumps([path, body], sort_keys=True)
+        batch = self._batches.get(key)
+        if batch is None:
+            loop = asyncio.get_running_loop()
+            batch = {"screens": set(), "all": False, "done": loop.create_future()}
+            self._batches[key] = batch
+            loop.call_later(0.02, lambda: loop.create_task(self._send_batch(key)))
+        if screen is None:
+            batch["all"] = True
+        else:
+            batch["screens"].add(screen)
+        await asyncio.shield(batch["done"])
+
+    async def _send_batch(self, key: str) -> None:
+        batch = self._batches.pop(key)
+        path, body = json.loads(key)
+        if not batch["all"]:
+            body["screens"] = sorted(batch["screens"])
+        try:
+            await self.client.post(path, body)
+        except Exception as err:  # every caller gets it
+            batch["done"].set_exception(err)
+        else:
+            batch["done"].set_result(None)
 
     def _set_connected(self, on: bool) -> None:
         if self.connected != on:

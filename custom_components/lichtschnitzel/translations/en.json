@@ -116,6 +116,96 @@
           "description": "Name of the scene; upper and lower case of A to Z do not matter."
         }
       }
+    },
+    "notify": {
+      "name": "Notify",
+      "description": "Shows a short signal on the chosen screens (doorbell, washer done), then every screen shows what it showed before. A screen light targets that screen, the lamp's own light all screens. It also shows while a screen or the lamp is off.",
+      "fields": {
+        "pattern": {
+          "name": "Pattern",
+          "description": "Flash (on and off), pulse (a smooth breath), chase (a comet running along the screen) or solid."
+        },
+        "rgb_color": {
+          "name": "Colour",
+          "description": "Colour of the signal; white without it."
+        },
+        "brightness_pct": {
+          "name": "Brightness",
+          "description": "Brightness of the signal; screen and lamp brightness do not dim it. 100 % without it."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long, in seconds (at most 600). 0 ends a notification that is showing."
+        },
+        "period": {
+          "name": "Period",
+          "description": "One blink, breath or run in seconds; without it 0.6 (flash), 1.5 (pulse) or 1 (chase)."
+        },
+        "start": {
+          "name": "Start",
+          "description": "First LED of the section, from the screen's start; negative counts from the end (-6: the last six LEDs). Whole screen without it."
+        },
+        "length": {
+          "name": "Length",
+          "description": "LEDs of the section; 0 or none runs to the end of the screen."
+        }
+      }
+    },
+    "set_indicator": {
+      "name": "Set indicator",
+      "description": "Shows a standing signal on the chosen screens until it is cleared, e.g. while the washer runs. Each has an ID; setting the same ID again changes it (e.g. a new progress). Without Start the indicators of a screen line up from its end. A screen light targets that screen, the lamp's own light all screens.",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "Name of the indicator, 1 to 23 characters, e.g. washer. Used again to change or clear it."
+        },
+        "pattern": {
+          "name": "Pattern",
+          "description": "Flash, pulse, chase or solid (default)."
+        },
+        "rgb_color": {
+          "name": "Colour",
+          "description": "Colour of the indicator; white without it."
+        },
+        "brightness_pct": {
+          "name": "Brightness",
+          "description": "Its own brightness; screen and lamp brightness do not dim it. 100 % without it."
+        },
+        "progress": {
+          "name": "Progress",
+          "description": "Optional: lights this share of the section as a bar, the rest dimly, e.g. from the remaining time."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Optional: first LED of a fixed section (negative counts from the end). Without it the indicator lines up from the screen's end."
+        },
+        "length": {
+          "name": "Length",
+          "description": "LEDs of the indicator; 3 when it lines up, to the end of the screen at a fixed start."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "-100 to 100, default 0. Higher sits nearer the end of the screen; when there is no room, lower ones wait."
+        },
+        "period": {
+          "name": "Period",
+          "description": "One blink, breath or run in seconds."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Optional: clears itself after this many seconds (at most 600). Without it it stays until cleared."
+        }
+      }
+    },
+    "clear_indicator": {
+      "name": "Clear indicator",
+      "description": "Removes an indicator from the chosen screens, or all indicators there without an ID.",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "The indicator to remove; without it all of these screens."
+        }
+      }
     }
   },
   "exceptions": {
@@ -130,6 +220,19 @@
     },
     "no_scene": {
       "message": "The lamp has no scene {scene}."
+    },
+    "notify_unsupported": {
+      "message": "The lamp's firmware has no notifications or indicators yet; update it."
+    }
+  },
+  "selector": {
+    "pattern": {
+      "options": {
+        "flash": "Flash",
+        "pulse": "Pulse",
+        "chase": "Chase",
+        "solid": "Solid"
+      }
     }
   }
 }

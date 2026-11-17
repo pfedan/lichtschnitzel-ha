@@ -22,7 +22,7 @@ from homeassistant.helpers.service import async_register_platform_entity_service
 from homeassistant.helpers.typing import ConfigType
 
 from .api import AuthFailed, LichtschnitzelClient, LichtschnitzelError
-from .const import CARD_URL, CONF_PASSWORD, DEFAULT_PORT, DOMAIN, PLATFORMS
+from .const import CARD_URL, CONF_PASSWORD, DEFAULT_PORT, DOMAIN, NOTIFY_PATTERNS, PLATFORMS
 from .hub import LichtschnitzelHub
 
 type LichtschnitzelConfigEntry = ConfigEntry[LichtschnitzelHub]
@@ -56,6 +56,32 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         },
         func="async_activate_scene",
     )
+    look = {
+        vol.Optional("rgb_color"): vol.All(vol.ExactSequence((cv.byte, cv.byte, cv.byte)), vol.Coerce(tuple)),
+        vol.Optional("brightness_pct"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+        vol.Optional("period"): vol.All(vol.Coerce(float), vol.Range(min=0.03, max=60)),
+        vol.Optional("start"): vol.All(vol.Coerce(int), vol.Range(min=-10000, max=10000)),
+        vol.Optional("length"): vol.All(vol.Coerce(int), vol.Range(min=0, max=10000)),
+        vol.Optional("duration"): vol.All(vol.Coerce(float), vol.Range(min=0, max=600)),
+    }
+    indicator_id = vol.All(cv.string, vol.Length(min=1, max=23))
+    for name, schema in (
+        ("notify", {vol.Optional("pattern", default="flash"): vol.In(NOTIFY_PATTERNS), **look}),
+        (
+            "set_indicator",
+            {
+                vol.Required("id"): indicator_id,
+                vol.Optional("pattern", default="solid"): vol.In(NOTIFY_PATTERNS),
+                vol.Optional("progress"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+                vol.Optional("priority"): vol.All(vol.Coerce(int), vol.Range(min=-100, max=100)),
+                **look,
+            },
+        ),
+        ("clear_indicator", {vol.Optional("id"): indicator_id}),
+    ):
+        async_register_platform_entity_service(
+            hass, DOMAIN, name, entity_domain=LIGHT_DOMAIN, schema=schema, func=f"async_{name}"
+        )
     await _register_card(hass)
     return True
 

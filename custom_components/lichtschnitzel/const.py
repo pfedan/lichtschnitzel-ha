@@ -15,3 +15,6 @@ PARAM_TYPES = ("float", "uint32", "Rgb")  # effect parameters HA can set
 PLATFORMS = ["light", "button", "number", "switch", "select", "sensor", "binary_sensor"]
 
 CARD_URL = f"/{DOMAIN}/lichtschnitzel-card.js"
+
+# Patterns of lichtschnitzel.notify, as POST /api/notify takes them.
+NOTIFY_PATTERNS = ["flash", "pulse", "chase", "solid"]
