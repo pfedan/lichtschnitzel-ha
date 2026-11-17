@@ -4,7 +4,7 @@ Bindet [Lichtschnitzel](https://github.com/pfedan/lichtschnitzel)-LED-Controller
 
 ## Installation
 
-Über [HACS](https://hacs.xyz/) als benutzerdefiniertes Repository (Typ Integration) hinzufügen, oder `custom_components/lichtschnitzel` in den `config`-Ordner von Home Assistant kopieren. Nach einem Neustart findet Home Assistant Lampen im Netz von selbst (mDNS `_lichtschnitzel._tcp`); sonst unter *Einstellungen → Geräte & Dienste → Integration hinzufügen → Lichtschnitzel* die Adresse eingeben. Ein Passwort braucht es nur, wenn die Lampe eins für die Steuerung (`control`) hat.
+Ab Home Assistant 2026.11 über den eingebauten [Marketplace](https://www.home-assistant.io/integrations/marketplace/) (ersetzt HACS): *Einstellungen → Marketplace*, oben rechts „Add from link“ (in der deutschen Oberfläche entsprechend übersetzt), `pfedan/lichtschnitzel-ha` eintragen (Typ Integration), dann auf der Seite des Repositorys installieren. Auf älteren Versionen über HACS als benutzerdefiniertes Repository (Typ Integration). Oder `custom_components/lichtschnitzel` in den `config`-Ordner von Home Assistant kopieren. Nach einem Neustart findet Home Assistant Lampen im Netz von selbst (mDNS `_lichtschnitzel._tcp`); sonst unter *Einstellungen → Geräte & Dienste → Integration hinzufügen → Lichtschnitzel* die Adresse eingeben. Ein Passwort braucht es nur, wenn die Lampe eins für die Steuerung (`control`) hat.
 
 ## Was in Home Assistant ankommt
 

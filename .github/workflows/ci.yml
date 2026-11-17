@@ -25,7 +25,8 @@ jobs:
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
-    # The HACS action validates public repositories only.
+    # The HACS action (also the validation of the Marketplace, which replaces HACS from 2026.11)
+    # checks public repositories only.
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
