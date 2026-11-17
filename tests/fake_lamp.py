@@ -41,6 +41,8 @@ class FakeLamp:
         self.info_id = "aa:bb:cc:dd:ee:ff"
         self.clients: set[web.WebSocketResponse] = set()
         self.writes: list[tuple[str, object]] = []
+        self.notifications: list[dict] = []  # bodies of POST /api/notify
+        self.can_notify = True  # False: firmware without notifications (404)
         # Scenes: index -> (name, screens); None for firmware without them.
         self.scenes: dict[int, tuple[str, dict]] | None = {}
         self.scene_active: int | None = None
@@ -67,6 +69,7 @@ class FakeLamp:
         app.router.add_post("/api/reboot", self.ok)
         app.router.add_get("/api/scenes", self.get_scenes)
         app.router.add_post("/api/scenes/activate", self.post_activate)
+        app.router.add_post("/api/notify", self.post_notify)
         app.router.add_get("/api/ws", self.ws)
         self.server = TestServer(app, host="127.0.0.1")
 
@@ -213,6 +216,14 @@ class FakeLamp:
         self.revision += 1
         await self.broadcast(dict(self.scenes_json(), type="scenes"))
         return web.json_response({"index": i, "name": self.scenes[i][0]})
+
+    async def post_notify(self, request):
+        if not self.authorized(request):
+            return self.denied()
+        if not self.can_notify:
+            return web.json_response({"error": "notfound"}, status=404)
+        self.notifications.append(await request.json())
+        return web.json_response({})
 
     async def ok(self, request):
         return web.json_response({})

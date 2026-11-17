@@ -22,7 +22,7 @@ from homeassistant.helpers.service import async_register_platform_entity_service
 from homeassistant.helpers.typing import ConfigType
 
 from .api import AuthFailed, LichtschnitzelClient, LichtschnitzelError
-from .const import CARD_URL, CONF_PASSWORD, DEFAULT_PORT, DOMAIN, PLATFORMS
+from .const import CARD_URL, CONF_PASSWORD, DEFAULT_PORT, DOMAIN, NOTIFY_PATTERNS, PLATFORMS
 from .hub import LichtschnitzelHub
 
 type LichtschnitzelConfigEntry = ConfigEntry[LichtschnitzelHub]
@@ -55,6 +55,22 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             vol.Exclusive("name", "scene"): cv.string,
         },
         func="async_activate_scene",
+    )
+    async_register_platform_entity_service(
+        hass,
+        DOMAIN,
+        "notify",
+        entity_domain=LIGHT_DOMAIN,
+        schema={
+            vol.Optional("pattern", default="flash"): vol.In(NOTIFY_PATTERNS),
+            vol.Optional("rgb_color"): vol.All(vol.ExactSequence((cv.byte, cv.byte, cv.byte)), vol.Coerce(tuple)),
+            vol.Optional("brightness_pct"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+            vol.Optional("duration", default=3): vol.All(vol.Coerce(float), vol.Range(min=0, max=600)),
+            vol.Optional("period"): vol.All(vol.Coerce(float), vol.Range(min=0.03, max=60)),
+            vol.Optional("start"): vol.All(vol.Coerce(int), vol.Range(min=-10000, max=10000)),
+            vol.Optional("length"): vol.All(vol.Coerce(int), vol.Range(min=0, max=10000)),
+        },
+        func="async_notify",
     )
     await _register_card(hass)
     return True

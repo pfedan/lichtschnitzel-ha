@@ -36,6 +36,7 @@ class LichtschnitzelHub:
         self._task: asyncio.Task | None = None
         self._reload: asyncio.TimerHandle | None = None
         self._revision: int | None = None
+        self._notify_batches: dict[str, dict] = {}
 
     # ---- lifecycle
     async def async_load(self) -> None:
@@ -182,6 +183,36 @@ class LichtschnitzelHub:
             self.scenes["modified"] = False
         self.reload_tree_soon(0)  # all screens may have changed
         self._notify()
+
+    # ---- notifications
+    async def async_notify(self, screen: int | None, body: dict) -> None:
+        """Shows a notification on screen (None: every screen with LEDs). Calls with the same body that
+        come together (one action on several screens of this lamp) go out as one request, so the
+        screens start in step."""
+        key = json.dumps(body, sort_keys=True)
+        batch = self._notify_batches.get(key)
+        if batch is None:
+            loop = asyncio.get_running_loop()
+            batch = {"screens": set(), "all": False, "done": loop.create_future()}
+            self._notify_batches[key] = batch
+            loop.call_later(0.02, lambda: loop.create_task(self._send_notify(key)))
+        if screen is None:
+            batch["all"] = True
+        else:
+            batch["screens"].add(screen)
+        await asyncio.shield(batch["done"])
+
+    async def _send_notify(self, key: str) -> None:
+        batch = self._notify_batches.pop(key)
+        body = dict(json.loads(key))
+        if not batch["all"]:
+            body["screens"] = sorted(batch["screens"])
+        try:
+            await self.client.notify(body)
+        except Exception as err:  # every caller gets it
+            batch["done"].set_exception(err)
+        else:
+            batch["done"].set_result(None)
 
     def _set_connected(self, on: bool) -> None:
         if self.connected != on:

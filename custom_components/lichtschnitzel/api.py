@@ -101,6 +101,10 @@ class LichtschnitzelClient:
     async def mark(self, leds: list[list[int]], ms: int = 1500) -> None:
         await self.request("POST", "/api/mark", {"leds": leds, "ms": ms})
 
+    async def notify(self, body: dict) -> None:
+        """POST /api/notify: a short notification on screens (firmware API.md, Notifications)."""
+        await self.request("POST", "/api/notify", body)
+
     async def scenes(self) -> dict | None:
         """GET /api/scenes: {"scenes": [{"index", "name"}], "active", "modified", "max"}; None on
         firmware without scenes."""

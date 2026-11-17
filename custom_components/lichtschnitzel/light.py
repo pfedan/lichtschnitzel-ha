@@ -13,10 +13,11 @@ from homeassistant.components.light import (
     LightEntityFeature,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import LichtschnitzelConfigEntry
+from .api import LichtschnitzelError
 from .const import DOMAIN, FBM, NO_EFFECT
 from .entity import LichtschnitzelEntity, ScreenEntity, new_screens
 from .params import EffectParameter, ParameterTracker
@@ -45,6 +46,39 @@ class NoParameters:
             translation_domain=DOMAIN, translation_key="not_a_screen", translation_placeholders={"entity": self.entity_id}
         )
 
+    async def async_notify(self, **kwargs: Any) -> None:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="not_a_screen", translation_placeholders={"entity": self.entity_id}
+        )
+
+
+def notify_body(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """The body of POST /api/notify from the fields of lichtschnitzel.notify."""
+    body: dict[str, Any] = {
+        "pattern": kwargs.get("pattern", "flash"),
+        "ms": round(kwargs.get("duration", 3) * 1000),
+    }
+    if "rgb_color" in kwargs:
+        body["color"] = [int(c) for c in kwargs["rgb_color"]]
+    if "brightness_pct" in kwargs:
+        body["brightness"] = round(kwargs["brightness_pct"] * 255 / 100)
+    if "period" in kwargs:
+        body["period"] = round(kwargs["period"] * 1000)
+    if "start" in kwargs:
+        body["start"] = int(kwargs["start"])
+    if "length" in kwargs:
+        body["length"] = int(kwargs["length"])
+    return body
+
+
+async def send_notify(hub: LichtschnitzelHub, screen: int | None, kwargs: dict[str, Any]) -> None:
+    try:
+        await hub.async_notify(screen, notify_body(kwargs))
+    except LichtschnitzelError as err:
+        if err.status != 404:
+            raise
+        raise HomeAssistantError(translation_domain=DOMAIN, translation_key="notify_unsupported") from err
+
 
 class LampLight(NoParameters, LichtschnitzelEntity, LightEntity):
     """The master switch: off pauses all effects, the brightness scales every screen."""
@@ -55,6 +89,9 @@ class LampLight(NoParameters, LichtschnitzelEntity, LightEntity):
 
     def __init__(self, hub: LichtschnitzelHub) -> None:
         super().__init__(hub, "lamp")
+
+    async def async_notify(self, **kwargs: Any) -> None:
+        await send_notify(self.hub, None, kwargs)  # every screen
 
     @property
     def is_on(self) -> bool:
@@ -124,6 +161,9 @@ class ScreenLight(ScreenEntity, LightEntity):
 
     def _snapshot(self) -> object:
         return (self.available, self.is_on, self.brightness, self.effect, self.name, self.extra_state_attributes)
+
+    async def async_notify(self, **kwargs: Any) -> None:
+        await send_notify(self.hub, self.screen, kwargs)
 
     async def async_set_parameter(self, parameter: str, value: Any) -> None:
         try:

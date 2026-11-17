@@ -5,7 +5,7 @@ import asyncio
 
 import pytest
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from .fake_lamp import FakeLamp
@@ -189,3 +189,27 @@ async def test_firmware_without_scenes(hass: HomeAssistant, lamp: FakeLamp, entr
     assert await hass.config_entries.async_reload(entry.entry_id)
     await connected(hass)
     assert hass.states.get("select.testlampe_scene").state == "unavailable"
+
+
+async def test_notify(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    await connected(hass)
+    # Two screens in one action: one request, so they start in step.
+    await hass.services.async_call(
+        "lichtschnitzel",
+        "notify",
+        {"entity_id": ["light.testlampe_screen_0", "light.testlampe_screen_1"], "pattern": "pulse", "rgb_color": [255, 160, 0],
+         "brightness_pct": 50, "duration": 5, "period": 1.5, "start": -6, "length": 4},
+        blocking=True,
+    )
+    assert lamp.notifications == [
+        {"pattern": "pulse", "ms": 5000, "color": [255, 160, 0], "brightness": 128, "period": 1500, "start": -6, "length": 4, "screens": [0, 1]}
+    ]
+    # The lamp's own light: every screen; defaults.
+    await hass.services.async_call("lichtschnitzel", "notify", {"entity_id": "light.testlampe"}, blocking=True)
+    assert lamp.notifications[-1] == {"pattern": "flash", "ms": 3000}
+    # Duration 0 ends it.
+    await hass.services.async_call("lichtschnitzel", "notify", {"entity_id": "light.testlampe_screen_1", "duration": 0}, blocking=True)
+    assert lamp.notifications[-1] == {"pattern": "flash", "ms": 0, "screens": [1]}
+    lamp.can_notify = False
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call("lichtschnitzel", "notify", {"entity_id": "light.testlampe_screen_0"}, blocking=True)

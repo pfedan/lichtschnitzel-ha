@@ -116,6 +116,40 @@
           "description": "Name der Szene; Groß- und Kleinschreibung von A bis Z ist egal."
         }
       }
+    },
+    "notify": {
+      "name": "Benachrichtigen",
+      "description": "Zeigt ein kurzes Signal auf den gewählten Screens (Türklingel, Waschmaschine fertig), danach zeigt jeder Screen wieder genau das, was er vorher zeigte. Eine Screen-Leuchte meint diesen Screen, die Leuchte der Lampe alle Screens. Es erscheint auch, wenn ein Screen oder die Lampe aus ist.",
+      "fields": {
+        "pattern": {
+          "name": "Muster",
+          "description": "Blinken (an und aus), Pulsieren (sanftes Atmen), Lauflicht (ein Komet läuft über den Screen) oder Dauerlicht."
+        },
+        "rgb_color": {
+          "name": "Farbe",
+          "description": "Farbe des Signals; ohne Angabe weiß."
+        },
+        "brightness_pct": {
+          "name": "Helligkeit",
+          "description": "Helligkeit des Signals; die Helligkeit von Screen und Lampe dimmt es nicht. Ohne Angabe 100 %."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Wie lange, in Sekunden (höchstens 600). 0 beendet eine laufende Benachrichtigung."
+        },
+        "period": {
+          "name": "Periode",
+          "description": "Ein Blinken, Atemzug oder Lauf in Sekunden; ohne Angabe 0,6 (Blinken), 1,5 (Pulsieren) oder 1 (Lauflicht)."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Erste LED des Abschnitts ab Anfang des Screens; negativ zählt vom Ende (-6: die letzten sechs LEDs). Ohne Angabe der ganze Screen."
+        },
+        "length": {
+          "name": "Länge",
+          "description": "LEDs des Abschnitts; 0 oder keine Angabe reicht bis zum Ende des Screens."
+        }
+      }
     }
   },
   "exceptions": {
@@ -130,6 +164,19 @@
     },
     "no_scene": {
       "message": "Die Lampe hat keine Szene {scene}."
+    },
+    "notify_unsupported": {
+      "message": "Die Firmware der Lampe kann noch keine Benachrichtigungen; bitte aktualisieren."
+    }
+  },
+  "selector": {
+    "pattern": {
+      "options": {
+        "flash": "Blinken",
+        "pulse": "Pulsieren",
+        "chase": "Lauflicht",
+        "solid": "Dauerlicht"
+      }
     }
   }
 }

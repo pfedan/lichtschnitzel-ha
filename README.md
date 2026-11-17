@@ -68,6 +68,30 @@ data:
 
 Hauptschalter und Helligkeit der Lampe bleiben beim Umschalten, wie sie sind. Wie jede Änderung gilt eine Szene nach einem Neustart der Lampe erst, wenn sie gespeichert wurde („Zustand speichern“). Firmware ohne Szenen: die Entity ist `unavailable`.
 
+## Benachrichtigungen
+
+`lichtschnitzel.notify` lässt Screens kurz signalisieren, etwa wenn es klingelt, die Waschmaschine fertig ist oder der Fernseher angeht. Danach zeigt jeder Screen wieder genau das, was er vorher zeigte; am Zustand der Lampe ändert sich nichts. Ziel sind Screen-Leuchten (dieser Screen) oder die Leuchte der Lampe (alle Screens). Mehrere Screens einer Aktion starten gleichzeitig.
+
+```yaml
+automation:
+  - triggers:
+      - trigger: state
+        entity_id: binary_sensor.tuerklingel
+        to: "on"
+    actions:
+      - action: lichtschnitzel.notify
+        target:
+          entity_id: [light.lampe_flur, light.lampe_wohnzimmer]
+        data:
+          pattern: pulse         # flash, pulse, chase, solid
+          rgb_color: [255, 160, 0]
+          brightness_pct: 80
+          duration: 5            # Sekunden, 0 beendet die Benachrichtigung
+          start: -6              # optional: nur die letzten sechs LEDs des Screens
+```
+
+`period` (Sekunden) setzt die Geschwindigkeit von Blinken, Pulsieren und Lauflicht, `length` die Breite des Abschnitts. Die Benachrichtigung erscheint auch, wenn der Screen oder die Lampe aus ist, mit ihrer eigenen Helligkeit. Sie braucht eine Firmware mit `POST /api/notify` (lichtschnitzel#64).
+
 ## Ohne Lampe testen: das Effektlabor als Lampe
 
 Das Effektlabor (der digitale Zwilling im Browser) lässt sich über eine kleine Brücke als Lampe ins Netz stellen:
