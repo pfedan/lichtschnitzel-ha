@@ -150,6 +150,62 @@
           "description": "LEDs des Abschnitts; 0 oder keine Angabe reicht bis zum Ende des Screens."
         }
       }
+    },
+    "set_indicator": {
+      "name": "Anzeige setzen",
+      "description": "Zeigt ein stehendes Signal auf den gewählten Screens, bis es gelöscht wird, etwa solange die Waschmaschine läuft. Jede Anzeige hat eine ID; dieselbe ID noch einmal ändert sie (z. B. neuer Fortschritt). Ohne Start reihen sich die Anzeigen eines Screens von seinem Ende her auf. Eine Screen-Leuchte meint diesen Screen, die Leuchte der Lampe alle Screens.",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "Name der Anzeige, 1 bis 23 Zeichen, z. B. waschmaschine. Damit wird sie später geändert oder gelöscht."
+        },
+        "pattern": {
+          "name": "Muster",
+          "description": "Blinken, Pulsieren, Lauflicht oder Dauerlicht (Standard)."
+        },
+        "rgb_color": {
+          "name": "Farbe",
+          "description": "Farbe der Anzeige; ohne Angabe weiß."
+        },
+        "brightness_pct": {
+          "name": "Helligkeit",
+          "description": "Eigene Helligkeit; die Helligkeit von Screen und Lampe dimmt sie nicht. Ohne Angabe 100 %."
+        },
+        "progress": {
+          "name": "Fortschritt",
+          "description": "Optional: leuchtet diesen Anteil des Abschnitts als Balken, den Rest schwach, z. B. aus der Restzeit."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Optional: erste LED eines festen Abschnitts (negativ zählt vom Ende). Ohne Angabe reiht sich die Anzeige vom Ende des Screens her ein."
+        },
+        "length": {
+          "name": "Länge",
+          "description": "LEDs der Anzeige; 3 beim Einreihen, bei festem Start bis zum Ende des Screens."
+        },
+        "priority": {
+          "name": "Priorität",
+          "description": "-100 bis 100, Standard 0. Höhere sitzt näher am Ende des Screens; ist kein Platz, warten niedrigere."
+        },
+        "period": {
+          "name": "Periode",
+          "description": "Ein Blinken, Atemzug oder Lauf in Sekunden."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Optional: verschwindet nach so vielen Sekunden von selbst (höchstens 600). Ohne Angabe bleibt sie, bis sie gelöscht wird."
+        }
+      }
+    },
+    "clear_indicator": {
+      "name": "Anzeige löschen",
+      "description": "Entfernt eine Anzeige von den gewählten Screens, ohne ID alle Anzeigen dort.",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "Die Anzeige, die weg soll; ohne Angabe alle auf diesen Screens."
+        }
+      }
     }
   },
   "exceptions": {
@@ -166,7 +222,7 @@
       "message": "Die Lampe hat keine Szene {scene}."
     },
     "notify_unsupported": {
-      "message": "Die Firmware der Lampe kann noch keine Benachrichtigungen; bitte aktualisieren."
+      "message": "Die Firmware der Lampe kann noch keine Benachrichtigungen und Anzeigen; bitte aktualisieren."
     }
   },
   "selector": {

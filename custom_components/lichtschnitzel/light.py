@@ -47,16 +47,25 @@ class NoParameters:
         )
 
     async def async_notify(self, **kwargs: Any) -> None:
+        self._not_a_screen()
+
+    async def async_set_indicator(self, **kwargs: Any) -> None:
+        self._not_a_screen()
+
+    async def async_clear_indicator(self, **kwargs: Any) -> None:
+        self._not_a_screen()
+
+    def _not_a_screen(self) -> None:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="not_a_screen", translation_placeholders={"entity": self.entity_id}
         )
 
 
-def notify_body(kwargs: dict[str, Any]) -> dict[str, Any]:
-    """The body of POST /api/notify from the fields of lichtschnitzel.notify."""
+def look_body(kwargs: dict[str, Any], pattern: str, duration: float) -> dict[str, Any]:
+    """The fields shared by notify and set_indicator, as the firmware takes them."""
     body: dict[str, Any] = {
-        "pattern": kwargs.get("pattern", "flash"),
-        "ms": round(kwargs.get("duration", 3) * 1000),
+        "pattern": kwargs.get("pattern", pattern),
+        "ms": round(kwargs.get("duration", duration) * 1000),
     }
     if "rgb_color" in kwargs:
         body["color"] = [int(c) for c in kwargs["rgb_color"]]
@@ -71,16 +80,51 @@ def notify_body(kwargs: dict[str, Any]) -> dict[str, Any]:
     return body
 
 
-async def send_notify(hub: LichtschnitzelHub, screen: int | None, kwargs: dict[str, Any]) -> None:
+def notify_body(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """The body of POST /api/notify from the fields of lichtschnitzel.notify."""
+    return look_body(kwargs, "flash", 3)
+
+
+def indicator_body(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """The body of POST /api/indicators from the fields of lichtschnitzel.set_indicator."""
+    body = look_body(kwargs, "solid", 0)
+    body["id"] = kwargs["id"]
+    if "progress" in kwargs:
+        body["progress"] = kwargs["progress"]
+    if "priority" in kwargs:
+        body["priority"] = int(kwargs["priority"])
+    return body
+
+
+async def send_overlay(call: Any, screen: int | None, body: dict[str, Any]) -> None:
+    """Runs a hub call for notifications or indicators; firmware without them gets a clear error."""
     try:
-        await hub.async_notify(screen, notify_body(kwargs))
+        await call(screen, body)
     except LichtschnitzelError as err:
         if err.status != 404:
             raise
         raise HomeAssistantError(translation_domain=DOMAIN, translation_key="notify_unsupported") from err
 
 
-class LampLight(NoParameters, LichtschnitzelEntity, LightEntity):
+class OverlayActions:
+    """lichtschnitzel.notify, set_indicator and clear_indicator for one screen (overlay_screen) or,
+    with None, the whole lamp."""
+
+    overlay_screen: int | None = None
+    hub: LichtschnitzelHub
+
+    async def async_notify(self, **kwargs: Any) -> None:
+        await send_overlay(self.hub.async_notify, self.overlay_screen, notify_body(kwargs))
+
+    async def async_set_indicator(self, **kwargs: Any) -> None:
+        await send_overlay(self.hub.async_set_indicator, self.overlay_screen, indicator_body(kwargs))
+
+    async def async_clear_indicator(self, **kwargs: Any) -> None:
+        body = {"id": kwargs["id"]} if kwargs.get("id") else {}
+        await send_overlay(self.hub.async_clear_indicator, self.overlay_screen, body)
+
+
+class LampLight(OverlayActions, NoParameters, LichtschnitzelEntity, LightEntity):
     """The master switch: off pauses all effects, the brightness scales every screen."""
 
     _attr_name = None  # the device's name
@@ -90,8 +134,6 @@ class LampLight(NoParameters, LichtschnitzelEntity, LightEntity):
     def __init__(self, hub: LichtschnitzelHub) -> None:
         super().__init__(hub, "lamp")
 
-    async def async_notify(self, **kwargs: Any) -> None:
-        await send_notify(self.hub, None, kwargs)  # every screen
 
     @property
     def is_on(self) -> bool:
@@ -113,7 +155,7 @@ class LampLight(NoParameters, LichtschnitzelEntity, LightEntity):
         await self.hub.async_set(f"{FBM}/On", 0)
 
 
-class ScreenLight(ScreenEntity, LightEntity):
+class ScreenLight(OverlayActions, ScreenEntity, LightEntity):
     """A screen: on/off (off frees the effect instance, its parameters are kept), brightness, effect.
     The parameters of the effect it shows are an attribute, for the Lichtschnitzel card; the
     service lichtschnitzel.set_parameter sets them."""
@@ -123,6 +165,7 @@ class ScreenLight(ScreenEntity, LightEntity):
 
     def __init__(self, hub: LichtschnitzelHub, screen: int) -> None:
         super().__init__(hub, screen, "light", None)
+        self.overlay_screen = screen
 
     @property
     def _has_levels(self) -> bool:
@@ -161,9 +204,6 @@ class ScreenLight(ScreenEntity, LightEntity):
 
     def _snapshot(self) -> object:
         return (self.available, self.is_on, self.brightness, self.effect, self.name, self.extra_state_attributes)
-
-    async def async_notify(self, **kwargs: Any) -> None:
-        await send_notify(self.hub, self.screen, kwargs)
 
     async def async_set_parameter(self, parameter: str, value: Any) -> None:
         try:

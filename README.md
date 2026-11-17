@@ -90,7 +90,40 @@ automation:
           start: -6              # optional: nur die letzten sechs LEDs des Screens
 ```
 
-`period` (Sekunden) setzt die Geschwindigkeit von Blinken, Pulsieren und Lauflicht, `length` die Breite des Abschnitts. Die Benachrichtigung erscheint auch, wenn der Screen oder die Lampe aus ist, mit ihrer eigenen Helligkeit. Sie braucht eine Firmware mit `POST /api/notify` (lichtschnitzel#64).
+`period` (Sekunden) setzt die Geschwindigkeit von Blinken, Pulsieren und Lauflicht, `length` die Breite des Abschnitts. Die Benachrichtigung erscheint auch, wenn der Screen oder die Lampe aus ist, mit ihrer eigenen Helligkeit. Benachrichtigungen und Anzeigen brauchen eine Firmware ab lichtschnitzel#64.
+
+## Stehende Anzeigen
+
+`lichtschnitzel.set_indicator` zeigt ein Signal, bis `lichtschnitzel.clear_indicator` es wieder entfernt, etwa solange die Waschmaschine läuft. Jede Anzeige hat eine ID; dieselbe ID noch einmal ändert sie. Ein Screen kann mehrere Anzeigen gleichzeitig zeigen: Ohne `start` reihen sie sich vom Ende des Screens her auf (je `length` LEDs, Standard 3, mit einer dunklen LED dazwischen), höhere `priority` näher am Ende. Passt eine nicht mehr hin, wartet sie, bis Platz ist. Mit `start` sitzt sie an einem festen Abschnitt. `progress` (0 bis 100) macht daraus einen Balken.
+
+```yaml
+automation:
+  - triggers:
+      - trigger: state
+        entity_id: sensor.waschmaschine_restzeit
+    actions:
+      - action: lichtschnitzel.set_indicator
+        target:
+          entity_id: light.lampe_bad
+        data:
+          id: waschmaschine
+          rgb_color: [0, 120, 255]
+          pattern: pulse
+          length: 10
+          progress: "{{ 100 - states('sensor.waschmaschine_restzeit') | float(0) / 90 * 100 }}"
+  - triggers:
+      - trigger: state
+        entity_id: binary_sensor.waschmaschine_tuer
+        to: "on"
+    actions:
+      - action: lichtschnitzel.clear_indicator
+        target:
+          entity_id: light.lampe_bad
+        data:
+          id: waschmaschine
+```
+
+Benachrichtigungen liegen kurz über den Anzeigen. Anzeigen werden nicht gespeichert: Nach einem Neustart der Lampe sind sie weg, bis die Automation sie wieder setzt.
 
 ## Ohne Lampe testen: das Effektlabor als Lampe
 

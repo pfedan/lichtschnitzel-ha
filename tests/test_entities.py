@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
@@ -202,14 +203,35 @@ async def test_notify(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
         blocking=True,
     )
     assert lamp.notifications == [
-        {"pattern": "pulse", "ms": 5000, "color": [255, 160, 0], "brightness": 128, "period": 1500, "start": -6, "length": 4, "screens": [0, 1]}
+        ("/api/notify", {"pattern": "pulse", "ms": 5000, "color": [255, 160, 0], "brightness": 128, "period": 1500, "start": -6, "length": 4, "screens": [0, 1]})
     ]
     # The lamp's own light: every screen; defaults.
     await hass.services.async_call("lichtschnitzel", "notify", {"entity_id": "light.testlampe"}, blocking=True)
-    assert lamp.notifications[-1] == {"pattern": "flash", "ms": 3000}
+    assert lamp.notifications[-1] == ("/api/notify", {"pattern": "flash", "ms": 3000})
     # Duration 0 ends it.
     await hass.services.async_call("lichtschnitzel", "notify", {"entity_id": "light.testlampe_screen_1", "duration": 0}, blocking=True)
-    assert lamp.notifications[-1] == {"pattern": "flash", "ms": 0, "screens": [1]}
+    assert lamp.notifications[-1] == ("/api/notify", {"pattern": "flash", "ms": 0, "screens": [1]})
     lamp.can_notify = False
     with pytest.raises(HomeAssistantError):
         await hass.services.async_call("lichtschnitzel", "notify", {"entity_id": "light.testlampe_screen_0"}, blocking=True)
+
+
+async def test_indicators(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    await connected(hass)
+    await hass.services.async_call(
+        "lichtschnitzel",
+        "set_indicator",
+        {"entity_id": ["light.testlampe_screen_0", "light.testlampe_screen_1"], "id": "waschmaschine", "pattern": "pulse",
+         "rgb_color": [0, 120, 255], "progress": 40, "priority": 2},
+        blocking=True,
+    )
+    assert lamp.notifications[-1] == (
+        "/api/indicators",
+        {"id": "waschmaschine", "pattern": "pulse", "ms": 0, "color": [0, 120, 255], "progress": 40.0, "priority": 2, "screens": [0, 1]},
+    )
+    await hass.services.async_call("lichtschnitzel", "clear_indicator", {"entity_id": "light.testlampe_screen_1", "id": "waschmaschine"}, blocking=True)
+    assert lamp.notifications[-1] == ("/api/indicators/clear", {"id": "waschmaschine", "screens": [1]})
+    await hass.services.async_call("lichtschnitzel", "clear_indicator", {"entity_id": "light.testlampe"}, blocking=True)
+    assert lamp.notifications[-1] == ("/api/indicators/clear", {})
+    with pytest.raises(vol.Invalid):  # an indicator needs an id
+        await hass.services.async_call("lichtschnitzel", "set_indicator", {"entity_id": "light.testlampe_screen_0"}, blocking=True)
