@@ -1,7 +1,7 @@
 {
   "domain": "lichtschnitzel",
   "name": "Lichtschnitzel",
-  "after_dependencies": ["frontend", "http"],
+  "after_dependencies": ["frontend", "http", "lovelace"],
   "codeowners": ["@pfedan"],
   "config_flow": true,
   "dependencies": [],
@@ -10,6 +10,6 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/pfedan/lichtschnitzel-ha/issues",
   "requirements": [],
-  "version": "0.3.0",
+  "version": "0.3.1",
   "zeroconf": ["_lichtschnitzel._tcp.local."]
 }
