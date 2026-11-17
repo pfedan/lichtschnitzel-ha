@@ -29,7 +29,7 @@ Braucht die Firmware mit `On`, `Brightness`, `Label` und `revision` (lichtschnit
 
 ## Die Lichtschnitzel-Karte
 
-Die Integration bringt eine Dashboard-Karte mit, die Home Assistant von selbst lädt (keine Ressource von Hand eintragen). Sie zeigt je Screen An/Aus, Helligkeit, den Effekt und darunter die Parameter des Effekts, der gerade läuft: Regler für Zahlen, Farbwähler für Farben. Wechselt der Effekt, wechseln die Regler mit. Die Parameter-Entities müssen dafür nicht aktiviert sein.
+Die Integration bringt eine Dashboard-Karte mit, die Home Assistant von selbst lädt (keine Ressource von Hand eintragen): Sie trägt sich als Dashboard-Ressource ein (`/lichtschnitzel/lichtschnitzel-card.js?v=…`, nur wenn die Ressourcen über die Oberfläche verwaltet werden), so lädt sie auch die Companion-App. Sie zeigt je Screen An/Aus, Helligkeit, den Effekt und darunter die Parameter des Effekts, der gerade läuft: Regler für Zahlen, Farbwähler für Farben. Wechselt der Effekt, wechseln die Regler mit. Die Parameter-Entities müssen dafür nicht aktiviert sein.
 
 ```yaml
 type: custom:lichtschnitzel-card

@@ -5,7 +5,8 @@ one WebSocket per lamp keeps the state live, writes go the same way.
 """
 from __future__ import annotations
 
-import json
+import hashlib
+import logging
 from pathlib import Path
 
 import voluptuous as vol
@@ -25,6 +26,8 @@ from .const import CARD_URL, CONF_PASSWORD, DEFAULT_PORT, DOMAIN, PLATFORMS
 from .hub import LichtschnitzelHub
 
 type LichtschnitzelConfigEntry = ConfigEntry[LichtschnitzelHub]
+
+_LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 CARD_FILE = Path(__file__).parent / "frontend" / "lichtschnitzel-card.js"
@@ -58,17 +61,43 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def _register_card(hass: HomeAssistant) -> None:
-    """Serves the Lichtschnitzel card and loads it in every dashboard (no resource to add by hand)."""
+    """Serves the Lichtschnitzel card and loads it in every dashboard (no resource to add by hand).
+
+    Two ways, because the companion apps did not always run the page-wide module: the module of the
+    frontend (every page) and a dashboard resource (storage mode), which the dashboard loads before
+    it builds its cards. ?v= is the content's hash, so a new card is never taken from a cache."""
     from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, add_extra_js_url  # noqa: PLC0415
     from homeassistant.components.http import StaticPathConfig  # noqa: PLC0415
 
     if hass.http is None or DATA_EXTRA_MODULE_URL not in hass.data:
         return  # no frontend (tests, or a setup without the UI)
     await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(CARD_FILE), False)])
-    version = await hass.async_add_executor_job(
-        lambda: json.loads((Path(__file__).parent / "manifest.json").read_text())["version"]
-    )
-    add_extra_js_url(hass, f"{CARD_URL}?v={version}")
+    digest = await hass.async_add_executor_job(lambda: hashlib.sha256(CARD_FILE.read_bytes()).hexdigest()[:10])
+    url = f"{CARD_URL}?v={digest}"
+    add_extra_js_url(hass, url)
+    await _register_resource(hass, url)
+
+
+async def _register_resource(hass: HomeAssistant, url: str) -> None:
+    """Keeps one dashboard resource for the card at url (storage mode only; YAML resources stay the user's)."""
+    data = hass.data.get("lovelace")
+    resources = data.get("resources") if isinstance(data, dict) else getattr(data, "resources", None)
+    if resources is None or not hasattr(resources, "async_create_item"):
+        return  # no dashboards, or resources in YAML
+    try:
+        if not getattr(resources, "loaded", True):
+            await resources.async_load()
+            resources.loaded = True
+        ours = [r for r in resources.async_items() if str(r.get("url", "")).split("?")[0] == CARD_URL]
+        if not ours:
+            await resources.async_create_item({"res_type": "module", "url": url})
+            return
+        if ours[0].get("url") != url:
+            await resources.async_update_item(ours[0]["id"], {"res_type": "module", "url": url})
+        for extra in ours[1:]:
+            await resources.async_delete_item(extra["id"])
+    except Exception:  # the card still loads as a frontend module
+        _LOGGER.warning("Could not register the Lichtschnitzel card as a dashboard resource", exc_info=True)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntry) -> bool:
