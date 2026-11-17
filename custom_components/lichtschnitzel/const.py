@@ -12,6 +12,6 @@ NO_EFFECT = 4294967295  # EffectIndex of a screen without effect (UINT_MAX)
 
 PARAM_TYPES = ("float", "uint32", "Rgb")  # effect parameters HA can set
 
-PLATFORMS = ["light", "button", "number", "switch", "sensor", "binary_sensor"]
+PLATFORMS = ["light", "button", "number", "switch", "select", "sensor", "binary_sensor"]
 
 CARD_URL = f"/{DOMAIN}/lichtschnitzel-card.js"

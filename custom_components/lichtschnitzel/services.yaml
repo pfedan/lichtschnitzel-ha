@@ -14,3 +14,21 @@ set_parameter:
       example: 1.5
       selector:
         object:
+
+activate_scene:
+  target:
+    entity:
+      integration: lichtschnitzel
+      domain: select
+  fields:
+    index:
+      example: 2
+      selector:
+        number:
+          min: 0
+          max: 15
+          mode: box
+    name:
+      example: Abend
+      selector:
+        text:

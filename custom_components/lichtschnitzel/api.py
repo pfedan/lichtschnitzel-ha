@@ -101,6 +101,20 @@ class LichtschnitzelClient:
     async def mark(self, leds: list[list[int]], ms: int = 1500) -> None:
         await self.request("POST", "/api/mark", {"leds": leds, "ms": ms})
 
+    async def scenes(self) -> dict | None:
+        """GET /api/scenes: {"scenes": [{"index", "name"}], "active", "modified", "max"}; None on
+        firmware without scenes."""
+        try:
+            return await self.request("GET", "/api/scenes")
+        except LichtschnitzelError as err:
+            if err.status == 404:
+                return None
+            raise
+
+    async def activate_scene(self, index: int | None = None, name: str | None = None) -> dict:
+        body = {"index": index} if index is not None else {"name": name}
+        return await self.request("POST", "/api/scenes/activate", body)
+
     async def save(self) -> None:
         await self.request("POST", "/api/save")
 

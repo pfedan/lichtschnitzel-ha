@@ -10,6 +10,7 @@ from pathlib import Path
 
 import voluptuous as vol
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
+from homeassistant.components.select import DOMAIN as SELECT_DOMAIN
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
@@ -40,6 +41,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             vol.Required("value"): vol.Any([vol.Coerce(int)], vol.Coerce(float), cv.string),
         },
         func="async_set_parameter",
+    )
+    async_register_platform_entity_service(
+        hass,
+        DOMAIN,
+        "activate_scene",
+        entity_domain=SELECT_DOMAIN,
+        schema={
+            vol.Exclusive("index", "scene"): vol.All(vol.Coerce(int), vol.Range(min=0, max=15)),
+            vol.Exclusive("name", "scene"): cv.string,
+        },
+        func="async_activate_scene",
     )
     await _register_card(hass)
     return True

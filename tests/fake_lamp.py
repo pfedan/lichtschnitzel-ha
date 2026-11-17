@@ -41,6 +41,11 @@ class FakeLamp:
         self.info_id = "aa:bb:cc:dd:ee:ff"
         self.clients: set[web.WebSocketResponse] = set()
         self.writes: list[tuple[str, object]] = []
+        # Scenes: index -> (name, screens); None for firmware without them.
+        self.scenes: dict[int, tuple[str, dict]] | None = {}
+        self.scene_active: int | None = None
+        self.scene_modified = False
+        self.scene_list = 0
         fbm = {f"Screen {i}": screen(0, 0, UINT_MAX) for i in range(16)}
         fbm["Screen 0"] = screen(0, 100, 1)
         fbm["Screen 1"] = screen(100, 50, 0)
@@ -60,6 +65,8 @@ class FakeLamp:
         app.router.add_post("/api/screens/{i}/{action}", self.screen_action)
         app.router.add_post("/api/save", self.ok)
         app.router.add_post("/api/reboot", self.ok)
+        app.router.add_get("/api/scenes", self.get_scenes)
+        app.router.add_post("/api/scenes/activate", self.post_activate)
         app.router.add_get("/api/ws", self.ws)
         self.server = TestServer(app, host="127.0.0.1")
 
@@ -105,6 +112,10 @@ class FakeLamp:
              "revision": self.revision, "lateFrames": 0, "heapFree": 100000,
              "power": {"estimatedMa": 1234, "budgetMa": 3000, "scale": 1.0},
              "wifi": {"state": "connected", "rssi": -60}}
+        if self.scenes is not None:
+            name = self.scenes[self.scene_active][0] if self.scene_active in self.scenes else None
+            d["scene"] = {"index": self.scene_active if name else None, "name": name,
+                          "modified": bool(name) and self.scene_modified, "list": self.scene_list}
         if self.supply:
             d["supply"] = {"source": "pd", "contractMv": 20000, "contractMa": 3000, "inputMa": 900, "efuseFault": False, "railsGood": True}
         return d
@@ -140,6 +151,8 @@ class FakeLamp:
             value = max(n["min"], min(n["max"], int(value)))
         n["val"] = value
         self.writes.append((path, value))
+        if path.startswith("FramebufferManager/Screen "):
+            self.scene_modified = True
         parts = path.split("/")
         if len(parts) == 3 and parts[2] in ("EffectIndex", "On"):
             self.bind(int(parts[1].split()[1]))
@@ -162,6 +175,44 @@ class FakeLamp:
                 pal["val"] = (pal["val"] + 1) % 3
         self.revision += 1
         return web.json_response({})
+
+    # ---- scenes
+    def screens(self) -> dict:
+        return {k: v for k, v in self.tree["FramebufferManager"].items() if k.startswith("Screen ")}
+
+    def scenes_json(self) -> dict:
+        return {"scenes": [{"index": i, "name": n} for i, (n, _) in sorted(self.scenes.items())],
+                "active": self.scene_active, "modified": self.scene_modified, "max": 16}
+
+    async def store_scene(self, index: int, name: str) -> None:
+        """POST /api/scenes, as the web UI would do it."""
+        self.scenes[index] = (name, copy.deepcopy(self.screens()))
+        self.scene_active, self.scene_modified = index, False
+        self.scene_list += 1
+        await self.broadcast(dict(self.scenes_json(), type="scenes"))
+
+    async def get_scenes(self, request):
+        if not self.authorized(request):
+            return self.denied()
+        if self.scenes is None:
+            return web.json_response({"error": "notfound"}, status=404)
+        return web.json_response(self.scenes_json())
+
+    async def post_activate(self, request):
+        if not self.authorized(request):
+            return self.denied()
+        body = await request.json()
+        i = body.get("index")
+        if i not in (self.scenes or {}):
+            match = [k for k, (n, _) in (self.scenes or {}).items() if n.lower() == str(body.get("name", "")).lower()]
+            i = match[0] if match else None
+        if i is None:
+            return web.json_response({"error": "notfound"}, status=404)
+        self.tree["FramebufferManager"].update(copy.deepcopy(self.scenes[i][1]))
+        self.scene_active, self.scene_modified = i, False
+        self.revision += 1
+        await self.broadcast(dict(self.scenes_json(), type="scenes"))
+        return web.json_response({"index": i, "name": self.scenes[i][0]})
 
     async def ok(self, request):
         return web.json_response({})
