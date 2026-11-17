@@ -43,6 +43,9 @@
       },
       "clear_indicators": {
         "name": "Anzeigen löschen"
+      },
+      "overwrite_scene": {
+        "name": "Szene überschreiben"
       }
     },
     "sensor": {
@@ -229,6 +232,9 @@
     },
     "notify_unsupported": {
       "message": "Die Firmware der Lampe kann noch keine Benachrichtigungen und Anzeigen; bitte aktualisieren."
+    },
+    "no_active_scene": {
+      "message": "Keine Szene ist aktiv, also gibt es keine zum Überschreiben."
     }
   },
   "selector": {

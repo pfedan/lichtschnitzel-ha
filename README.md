@@ -66,6 +66,8 @@ data:
   name: Abend                # oder index: 2
 ```
 
+Ändert sich danach ein Screen, zeigt die Entity die Szene weiter an, als „<Name> (geändert)“; die Szene mit ihrem Namen noch einmal wählen lädt sie neu. Der Knopf `button.<lampe>_szene_uberschreiben` speichert den momentanen Zustand in die zuletzt gewählte Szene (braucht das Passwort für `settings`, wenn eins gesetzt ist).
+
 Hauptschalter und Helligkeit der Lampe bleiben beim Umschalten, wie sie sind. Wie jede Änderung gilt eine Szene nach einem Neustart der Lampe erst, wenn sie gespeichert wurde („Zustand speichern“). Firmware ohne Szenen: die Entity ist `unavailable`.
 
 ## Benachrichtigungen

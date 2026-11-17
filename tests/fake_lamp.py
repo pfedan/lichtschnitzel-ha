@@ -69,6 +69,7 @@ class FakeLamp:
         app.router.add_post("/api/save", self.ok)
         app.router.add_post("/api/reboot", self.ok)
         app.router.add_get("/api/scenes", self.get_scenes)
+        app.router.add_post("/api/scenes", self.post_scene)
         app.router.add_post("/api/scenes/activate", self.post_activate)
         app.router.add_post("/api/notify", self.post_notify)
         app.router.add_post("/api/indicators", self.post_notify)
@@ -196,6 +197,16 @@ class FakeLamp:
         self.scene_active, self.scene_modified = index, False
         self.scene_list += 1
         await self.broadcast(dict(self.scenes_json(), type="scenes"))
+
+    async def post_scene(self, request):
+        """Overwriting a scene by index (the name stays)."""
+        if not self.authorized(request):
+            return self.denied()
+        i = (await request.json()).get("index")
+        if i not in (self.scenes or {}):
+            return web.json_response({"error": "notfound"}, status=404)
+        await self.store_scene(i, self.scenes[i][0])
+        return web.json_response({"index": i, "name": self.scenes[i][0]})
 
     async def get_scenes(self, request):
         if not self.authorized(request):

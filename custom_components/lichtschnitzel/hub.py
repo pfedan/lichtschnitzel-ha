@@ -185,6 +185,17 @@ class LichtschnitzelHub:
         self._notify()
 
     # ---- notifications and indicators
+    async def async_overwrite_scene(self) -> None:
+        """Stores the screens as they are now in the active scene, under its name (POST /api/scenes with
+        its index; needs the settings scope). Raises ValueError without an active scene."""
+        scene = self.active_scene()
+        if scene is None:
+            raise ValueError("no active scene")
+        await self.client.post("/api/scenes", {"index": scene["index"]})
+        if self.scenes is not None:
+            self.scenes["modified"] = False
+        self._notify()
+
     async def async_notify(self, screen: int | None, body: dict) -> None:
         """Shows a notification on screen (None: every screen with LEDs)."""
         await self._batched("/api/notify", screen, body)

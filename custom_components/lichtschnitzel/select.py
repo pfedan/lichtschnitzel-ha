@@ -19,8 +19,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntr
 
 
 class SceneSelect(LichtschnitzelEntity, SelectEntity):
-    """Options are the lamp's scenes by name. The current option is the active scene while the screens
-    are as it left them; once a screen changed it shows none, so choosing the scene again restores it."""
+    """Options are the lamp's scenes by name. The current option is the active scene. Once a screen
+    changed it is an extra option "<name> (geändert)", so the scene stays visible and choosing its
+    plain name loads it again."""
 
     _attr_translation_key = "scene"
     _attr_icon = "mdi:palette-swatch-variant"
@@ -32,16 +33,25 @@ class SceneSelect(LichtschnitzelEntity, SelectEntity):
     def available(self) -> bool:
         return super().available and self.hub.scenes is not None
 
+    def _modified_option(self) -> str | None:
+        scene = self.hub.active_scene()
+        if scene is None or not (self.hub.scenes or {}).get("modified"):
+            return None
+        word = "geändert" if (self.hass.config.language or "").startswith("de") else "changed"
+        return f"{scene['name']} ({word})"
+
     @property
     def options(self) -> list[str]:
-        return self.hub.scene_names()
+        names = self.hub.scene_names()
+        extra = self._modified_option()
+        return names + [extra] if extra and extra not in names else names
 
     @property
     def current_option(self) -> str | None:
         scene = self.hub.active_scene()
-        if scene is None or (self.hub.scenes or {}).get("modified"):
+        if scene is None:
             return None
-        return scene["name"]
+        return self._modified_option() or scene["name"]
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -58,6 +68,8 @@ class SceneSelect(LichtschnitzelEntity, SelectEntity):
         return (self.available, self.current_option, tuple(self.options), repr(self.extra_state_attributes))
 
     async def async_select_option(self, option: str) -> None:
+        if option == self._modified_option():
+            return  # the screens as they are
         await self.async_activate_scene(name=option)
 
     async def async_activate_scene(self, index: int | None = None, name: str | None = None) -> None:
