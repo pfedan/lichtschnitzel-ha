@@ -123,6 +123,16 @@ automation:
           id: waschmaschine
 ```
 
+### Blueprint: Anzeige folgt einer Entity
+
+Für den häufigsten Fall (Anzeige an, solange ein Fenster offen ist oder ein Schalter an ist) gibt es einen Blueprint. Importieren unter Einstellungen → Automationen & Szenen → Blueprints → Blueprint importieren, mit dieser Adresse:
+
+```
+https://github.com/pfedan/lichtschnitzel-ha/blob/main/blueprints/automation/lichtschnitzel/indicator_from_state.yaml
+```
+
+Dann pro Kopplung eine Automation daraus anlegen: Entity, aktiver Zustand (Standard `on`), Screens, eine eigene ID, Farbe, Muster, Helligkeit, Breite und Priorität. Die Automation setzt die Anzeige auch nach einem Neustart der Lampe oder von Home Assistant wieder.
+
 Benachrichtigungen liegen kurz über den Anzeigen. Anzeigen werden nicht gespeichert: Nach einem Neustart der Lampe sind sie weg, bis die Automation sie wieder setzt.
 
 ## Ohne Lampe testen: das Effektlabor als Lampe
