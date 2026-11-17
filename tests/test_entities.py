@@ -166,12 +166,22 @@ async def test_scenes(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
     await wait_for(hass, lambda: hass.states.get("light.testlampe_screen_1").state != "unavailable")
     assert lamp.scr(0)["Brightness"]["val"] == 255
 
-    # A change to a screen: no current option, so the scene can be chosen again.
+    # A change to a screen: the scene stays visible as "(changed)", and its plain name loads it again.
     await lamp.set("FramebufferManager/Screen 0/Brightness", 10)
     await lamp.status()
-    await wait_for(hass, lambda: hass.states.get(sel).state == "unknown")
+    await wait_for(hass, lambda: hass.states.get(sel).state == "Alltag (changed)")
+    assert hass.states.get(sel).attributes["options"] == ["Alltag", "Abend", "Alltag (changed)"]
     assert hass.states.get(sel).attributes["modified"] is True
     assert hass.states.get(sel).attributes["active"] == "Alltag"
+    await hass.services.async_call("select", "select_option", {"entity_id": sel, "option": "Alltag (changed)"}, blocking=True)
+    assert lamp.scr(0)["Brightness"]["val"] == 10  # choosing the changed state keeps it
+
+    # Overwrite the scene with the changed screens.
+    btn = "button.testlampe_overwrite_scene"
+    assert hass.states.get(btn).state != "unavailable"
+    await hass.services.async_call("button", "press", {"entity_id": btn}, blocking=True)
+    await wait_for(hass, lambda: hass.states.get(sel).state == "Alltag")
+    assert lamp.scenes[0][1]["Screen 0"]["Brightness"]["val"] == 10
 
     # The service by index and by name (ignoring case).
     await hass.services.async_call("lichtschnitzel", "activate_scene", {"entity_id": sel, "index": 3}, blocking=True)
@@ -235,3 +245,12 @@ async def test_indicators(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
     assert lamp.notifications[-1] == ("/api/indicators/clear", {})
     with pytest.raises(vol.Invalid):  # an indicator needs an id
         await hass.services.async_call("lichtschnitzel", "set_indicator", {"entity_id": "light.testlampe_screen_0"}, blocking=True)
+
+
+async def test_clear_all_indicators(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    await connected(hass)
+    lamp.indicator_count = 3
+    await lamp.status()
+    await wait_for(hass, lambda: hass.states.get("sensor.testlampe_indicators").state == "3")
+    await hass.services.async_call("button", "press", {"entity_id": "button.testlampe_clear_indicators"}, blocking=True)
+    assert lamp.notifications[-1] == ("/api/indicators/clear", {})

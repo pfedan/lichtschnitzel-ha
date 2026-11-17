@@ -1,19 +1,23 @@
-"""Buttons: next preset and default values per screen, save and restart for the lamp."""
+"""Buttons: next preset and default values per screen; save, restart, overwriting the active scene and
+clearing all indicators for the lamp."""
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import LichtschnitzelConfigEntry
+from .const import DOMAIN
 from .entity import LichtschnitzelEntity, ScreenEntity, new_screens
 from .hub import LichtschnitzelHub
+from .light import send_overlay
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntry, add: AddEntitiesCallback) -> None:
     hub = entry.runtime_data
-    add([SaveButton(hub), RestartButton(hub)])
+    add([SaveButton(hub), RestartButton(hub), ClearIndicatorsButton(hub), OverwriteSceneButton(hub)])
     done: set[int] = set()
 
     @callback
@@ -80,3 +84,36 @@ class RestartButton(LichtschnitzelEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.hub.client.reboot()
+
+
+class ClearIndicatorsButton(LichtschnitzelEntity, ButtonEntity):
+    """Clears every indicator on every screen of the lamp (POST /api/indicators/clear)."""
+
+    _attr_translation_key = "clear_indicators"
+    _attr_icon = "mdi:notification-clear-all"
+
+    def __init__(self, hub: LichtschnitzelHub) -> None:
+        super().__init__(hub, "clear-indicators")
+
+    async def async_press(self) -> None:
+        await send_overlay(self.hub.async_clear_indicator, None, {})
+
+
+class OverwriteSceneButton(LichtschnitzelEntity, ButtonEntity):
+    """Stores the screens as they are now in the scene that was chosen last (under its name)."""
+
+    _attr_translation_key = "overwrite_scene"
+    _attr_icon = "mdi:content-save-edit"
+
+    def __init__(self, hub: LichtschnitzelHub) -> None:
+        super().__init__(hub, "overwrite-scene")
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.hub.active_scene() is not None
+
+    async def async_press(self) -> None:
+        try:
+            await self.hub.async_overwrite_scene()
+        except ValueError as err:
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="no_active_scene") from err

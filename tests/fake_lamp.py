@@ -42,6 +42,7 @@ class FakeLamp:
         self.clients: set[web.WebSocketResponse] = set()
         self.writes: list[tuple[str, object]] = []
         self.notifications: list[dict] = []  # (path, body) of POST /api/notify and /api/indicators
+        self.indicator_count = 0  # "indicators" of /api/info
         self.can_notify = True  # False: firmware without notifications (404)
         # Scenes: index -> (name, screens); None for firmware without them.
         self.scenes: dict[int, tuple[str, dict]] | None = {}
@@ -68,6 +69,7 @@ class FakeLamp:
         app.router.add_post("/api/save", self.ok)
         app.router.add_post("/api/reboot", self.ok)
         app.router.add_get("/api/scenes", self.get_scenes)
+        app.router.add_post("/api/scenes", self.post_scene)
         app.router.add_post("/api/scenes/activate", self.post_activate)
         app.router.add_post("/api/notify", self.post_notify)
         app.router.add_post("/api/indicators", self.post_notify)
@@ -114,7 +116,7 @@ class FakeLamp:
 
     def info_json(self) -> dict:
         d = {"name": "Testlampe", "id": self.info_id, "version": "1.2.3", "api": 1, "uptimeS": self.uptime,
-             "revision": self.revision, "lateFrames": 0, "heapFree": 100000,
+             "revision": self.revision, "lateFrames": 0, "heapFree": 100000, "indicators": self.indicator_count,
              "power": {"estimatedMa": 1234, "budgetMa": 3000, "scale": 1.0},
              "wifi": {"state": "connected", "rssi": -60}}
         if self.scenes is not None:
@@ -195,6 +197,16 @@ class FakeLamp:
         self.scene_active, self.scene_modified = index, False
         self.scene_list += 1
         await self.broadcast(dict(self.scenes_json(), type="scenes"))
+
+    async def post_scene(self, request):
+        """Overwriting a scene by index (the name stays)."""
+        if not self.authorized(request):
+            return self.denied()
+        i = (await request.json()).get("index")
+        if i not in (self.scenes or {}):
+            return web.json_response({"error": "notfound"}, status=404)
+        await self.store_scene(i, self.scenes[i][0])
+        return web.json_response({"index": i, "name": self.scenes[i][0]})
 
     async def get_scenes(self, request):
         if not self.authorized(request):

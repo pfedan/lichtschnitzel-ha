@@ -66,6 +66,8 @@ data:
   name: Abend                # oder index: 2
 ```
 
+Ändert sich danach ein Screen, zeigt die Entity die Szene weiter an, als „<Name> (geändert)“; die Szene mit ihrem Namen noch einmal wählen lädt sie neu. Der Knopf `button.<lampe>_szene_uberschreiben` speichert den momentanen Zustand in die zuletzt gewählte Szene (braucht das Passwort für `settings`, wenn eins gesetzt ist).
+
 Hauptschalter und Helligkeit der Lampe bleiben beim Umschalten, wie sie sind. Wie jede Änderung gilt eine Szene nach einem Neustart der Lampe erst, wenn sie gespeichert wurde („Zustand speichern“). Firmware ohne Szenen: die Entity ist `unavailable`.
 
 ## Benachrichtigungen
@@ -132,6 +134,8 @@ https://github.com/pfedan/lichtschnitzel-ha/blob/main/blueprints/automation/lich
 ```
 
 Dann pro Kopplung eine Automation daraus anlegen: Entity, aktiver Zustand (Standard `on`), Screens, eine eigene ID, Farbe, Muster, Helligkeit, Breite und Priorität. Die Automation setzt die Anzeige auch nach einem Neustart der Lampe oder von Home Assistant wieder.
+
+Alle Anzeigen auf einmal löscht der Knopf `button.<lampe>_anzeigen_loschen` (oder `lichtschnitzel.clear_indicator` auf die Leuchte der Lampe ohne ID), der Sensor `sensor.<lampe>_anzeigen` zählt die gesetzten Anzeigen. In der Web-UI der Lampe erscheint dafür ein Feld „Anzeigen“, solange welche gesetzt sind.
 
 Benachrichtigungen liegen kurz über den Anzeigen. Anzeigen werden nicht gespeichert: Nach einem Neustart der Lampe sind sie weg, bis die Automation sie wieder setzt.
 

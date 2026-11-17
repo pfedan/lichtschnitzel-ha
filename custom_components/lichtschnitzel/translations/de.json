@@ -40,6 +40,12 @@
     "button": {
       "save": {
         "name": "Zustand speichern"
+      },
+      "clear_indicators": {
+        "name": "Anzeigen löschen"
+      },
+      "overwrite_scene": {
+        "name": "Szene überschreiben"
       }
     },
     "sensor": {
@@ -72,6 +78,9 @@
       },
       "late_frames": {
         "name": "Verspätete Frames"
+      },
+      "indicators": {
+        "name": "Anzeigen"
       }
     },
     "binary_sensor": {
@@ -223,6 +232,9 @@
     },
     "notify_unsupported": {
       "message": "Die Firmware der Lampe kann noch keine Benachrichtigungen und Anzeigen; bitte aktualisieren."
+    },
+    "no_active_scene": {
+      "message": "Keine Szene ist aktiv, also gibt es keine zum Überschreiben."
     }
   },
   "selector": {

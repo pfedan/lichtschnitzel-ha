@@ -40,6 +40,12 @@
     "button": {
       "save": {
         "name": "Save state"
+      },
+      "clear_indicators": {
+        "name": "Clear indicators"
+      },
+      "overwrite_scene": {
+        "name": "Overwrite scene"
       }
     },
     "sensor": {
@@ -72,6 +78,9 @@
       },
       "late_frames": {
         "name": "Late frames"
+      },
+      "indicators": {
+        "name": "Indicators"
       }
     },
     "binary_sensor": {
@@ -223,6 +232,9 @@
     },
     "notify_unsupported": {
       "message": "The lamp's firmware has no notifications or indicators yet; update it."
+    },
+    "no_active_scene": {
+      "message": "No scene is active, so there is none to overwrite."
     }
   },
   "selector": {
