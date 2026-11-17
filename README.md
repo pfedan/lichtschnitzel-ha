@@ -85,14 +85,14 @@ automation:
         target:
           entity_id: [light.lampe_flur, light.lampe_wohnzimmer]
         data:
-          pattern: pulse         # flash, pulse, chase, solid
+          pattern: pulse         # flash, pulse, chase, bounce, solid
           rgb_color: [255, 160, 0]
           brightness_pct: 80
           duration: 5            # Sekunden, 0 beendet die Benachrichtigung
           start: -6              # optional: nur die letzten sechs LEDs des Screens
 ```
 
-`period` (Sekunden) setzt die Geschwindigkeit von Blinken, Pulsieren und Lauflicht, `length` die Breite des Abschnitts. Die Benachrichtigung erscheint auch, wenn der Screen oder die Lampe aus ist, mit ihrer eigenen Helligkeit. Benachrichtigungen und Anzeigen brauchen eine Firmware ab lichtschnitzel#64.
+`period` (Sekunden) setzt die Geschwindigkeit von Blinken, Pulsieren, Lauflicht und Pendel (hin und her), `length` die Breite des Abschnitts. Die Benachrichtigung erscheint auch, wenn der Screen oder die Lampe aus ist, mit ihrer eigenen Helligkeit. Benachrichtigungen und Anzeigen brauchen eine Firmware ab lichtschnitzel#64, das Pendel (`bounce`) eine ab lichtschnitzel#66.
 
 ## Stehende Anzeigen
 

@@ -17,4 +17,4 @@ PLATFORMS = ["light", "button", "number", "switch", "select", "sensor", "binary_
 CARD_URL = f"/{DOMAIN}/lichtschnitzel-card.js"
 
 # Patterns of lichtschnitzel.notify, as POST /api/notify takes them.
-NOTIFY_PATTERNS = ["flash", "pulse", "chase", "solid"]
+NOTIFY_PATTERNS = ["flash", "pulse", "chase", "bounce", "solid"]

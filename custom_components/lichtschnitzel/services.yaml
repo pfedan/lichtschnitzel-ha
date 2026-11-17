@@ -48,6 +48,7 @@ notify:
             - flash
             - pulse
             - chase
+            - bounce
             - solid
     rgb_color:
       example: [255, 160, 0]
@@ -109,6 +110,7 @@ set_indicator:
             - flash
             - pulse
             - chase
+            - bounce
             - solid
     rgb_color:
       example: [0, 120, 255]

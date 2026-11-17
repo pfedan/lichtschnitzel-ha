@@ -132,7 +132,7 @@
       "fields": {
         "pattern": {
           "name": "Muster",
-          "description": "Blinken (an und aus), Pulsieren (sanftes Atmen), Lauflicht (ein Komet läuft über den Screen) oder Dauerlicht."
+          "description": "Blinken (an und aus), Pulsieren (sanftes Atmen), Lauflicht (ein Komet läuft über den Screen), Pendel (ein Komet läuft hin und her) oder Dauerlicht. Jede Signalform blendet in 0,3 s ein und aus."
         },
         "rgb_color": {
           "name": "Farbe",
@@ -148,7 +148,7 @@
         },
         "period": {
           "name": "Periode",
-          "description": "Ein Blinken, Atemzug oder Lauf in Sekunden; ohne Angabe 0,6 (Blinken), 1,5 (Pulsieren) oder 1 (Lauflicht)."
+          "description": "Ein Blinken, Atemzug oder Lauf in Sekunden; ohne Angabe 0,6 (Blinken), 1,5 (Pulsieren) 1 (Lauflicht) oder 2 (Pendel, hin und zurück)."
         },
         "start": {
           "name": "Start",
@@ -170,7 +170,7 @@
         },
         "pattern": {
           "name": "Muster",
-          "description": "Blinken, Pulsieren, Lauflicht oder Dauerlicht (Standard)."
+          "description": "Blinken, Pulsieren, Lauflicht, Pendel oder Dauerlicht (Standard)."
         },
         "rgb_color": {
           "name": "Farbe",
@@ -243,6 +243,7 @@
         "flash": "Blinken",
         "pulse": "Pulsieren",
         "chase": "Lauflicht",
+        "bounce": "Pendel",
         "solid": "Dauerlicht"
       }
     }

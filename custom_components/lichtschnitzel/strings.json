@@ -132,7 +132,7 @@
       "fields": {
         "pattern": {
           "name": "Pattern",
-          "description": "Flash (on and off), pulse (a smooth breath), chase (a comet running along the screen) or solid."
+          "description": "Flash (on and off), pulse (a smooth breath), chase (a comet running along the screen), bounce (a comet running there and back) or solid. Every pattern fades in and out over 0.3 s."
         },
         "rgb_color": {
           "name": "Colour",
@@ -148,7 +148,7 @@
         },
         "period": {
           "name": "Period",
-          "description": "One blink, breath or run in seconds; without it 0.6 (flash), 1.5 (pulse) or 1 (chase)."
+          "description": "One blink, breath or run in seconds; without it 0.6 (flash), 1.5 (pulse) 1 (chase) or 2 (bounce, there and back)."
         },
         "start": {
           "name": "Start",
@@ -170,7 +170,7 @@
         },
         "pattern": {
           "name": "Pattern",
-          "description": "Flash, pulse, chase or solid (default)."
+          "description": "Flash, pulse, chase, bounce or solid (default)."
         },
         "rgb_color": {
           "name": "Colour",
@@ -243,6 +243,7 @@
         "flash": "Flash",
         "pulse": "Pulse",
         "chase": "Chase",
+        "bounce": "Bounce",
         "solid": "Solid"
       }
     }
