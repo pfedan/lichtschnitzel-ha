@@ -1,5 +1,5 @@
-"""Lights: the whole lamp (On, Brightness of the FramebufferManager), one per screen with its effect,
-and the colour parameters of effects (disabled until switched on in the entity list)."""
+"""Lights: the whole lamp (its own switch and brightness), one per screen with its effect, and the
+colour parameters of effects (disabled until switched on in the entity list)."""
 from __future__ import annotations
 
 from typing import Any
@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import LichtschnitzelConfigEntry
 from .api import LichtschnitzelError
-from .const import DOMAIN, FBM, NO_EFFECT
+from .const import DOMAIN
 from .entity import LichtschnitzelEntity, ScreenEntity, new_screens
 from .params import EffectParameter, ParameterTracker
 from .hub import LichtschnitzelHub
@@ -26,10 +26,9 @@ from .hub import LichtschnitzelHub
 
 async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntry, add: AddEntitiesCallback) -> None:
     hub = entry.runtime_data
-    if hub.has(f"{FBM}/On"):
-        add([LampLight(hub)])
+    add([LampLight(hub)])
     done: set[int] = set()
-    params = ParameterTracker(hub, {"Rgb"})
+    params = ParameterTracker(hub, {"color"})
 
     @callback
     def discover() -> None:
@@ -37,7 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntr
         add([ColorParameter(hub, p) for p in params.new()])
 
     discover()
-    entry.async_on_unload(hub.add_tree_listener(discover))
+    entry.async_on_unload(hub.add_screen_listener(discover))
 
 
 class NoParameters:
@@ -137,22 +136,23 @@ class LampLight(OverlayActions, NoParameters, LichtschnitzelEntity, LightEntity)
 
     @property
     def is_on(self) -> bool:
-        return bool(self.hub.value(f"{FBM}/On", 1))
+        return bool(self.hub.lamp.get("on", True))
 
     @property
     def brightness(self) -> int:
-        return int(self.hub.value(f"{FBM}/Brightness", 255))
+        return int(self.hub.lamp.get("brightness", 255))
 
     def _snapshot(self) -> object:
         return (self.available, self.is_on, self.brightness)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
+        patch: dict[str, Any] = {"on": True}
         if ATTR_BRIGHTNESS in kwargs:
-            await self.hub.async_set(f"{FBM}/Brightness", int(kwargs[ATTR_BRIGHTNESS]))
-        await self.hub.async_set(f"{FBM}/On", 1)
+            patch["brightness"] = int(kwargs[ATTR_BRIGHTNESS])
+        await self.hub.async_patch_lamp(patch)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self.hub.async_set(f"{FBM}/On", 0)
+        await self.hub.async_patch_lamp({"on": False})
 
 
 class ScreenLight(OverlayActions, ScreenEntity, LightEntity):
@@ -167,27 +167,16 @@ class ScreenLight(OverlayActions, ScreenEntity, LightEntity):
         super().__init__(hub, screen, "light", None)
         self.overlay_screen = screen
 
-    @property
-    def _has_levels(self) -> bool:
-        return self.hub.has(f"{self.base}/On")
-
-    @property
-    def color_mode(self) -> ColorMode:
-        return ColorMode.BRIGHTNESS if self._has_levels else ColorMode.ONOFF
-
-    @property
-    def supported_color_modes(self) -> set[ColorMode]:
-        return {self.color_mode}
+    _attr_color_mode = ColorMode.BRIGHTNESS
+    _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
 
     @property
     def is_on(self) -> bool:
-        if self._has_levels:
-            return bool(self.hub.value(f"{self.base}/On", 1))
-        return self.hub.effect_of(self.screen) is not None  # older firmware: on = shows an effect
+        return bool(self.hub.screen(self.screen).get("on", True))
 
     @property
-    def brightness(self) -> int | None:
-        return int(self.hub.value(f"{self.base}/Brightness", 255)) if self._has_levels else None
+    def brightness(self) -> int:
+        return int(self.hub.screen(self.screen).get("brightness", 255))
 
     @property
     def effect_list(self) -> list[str]:
@@ -214,36 +203,33 @@ class ScreenLight(OverlayActions, ScreenEntity, LightEntity):
             ) from err
 
     async def async_turn_on(self, **kwargs: Any) -> None:
+        # Everything in one step, so the screen never shows a state in between.
+        patch: dict[str, Any] = {}
         if ATTR_EFFECT in kwargs:
-            idx = next((e["index"] for e in self.hub.effects if e["name"] == kwargs[ATTR_EFFECT]), None)
-            if idx is not None:
+            effect = next((e["id"] for e in self.hub.effects if e["name"] == kwargs[ATTR_EFFECT]), None)
+            if effect is not None:
                 # Like the web UI: choosing an effect gives the screen its own instance again.
-                if self.hub.value(f"{self.base}/Source", self.screen) != self.screen:
-                    await self.hub.async_set(f"{self.base}/Source", self.screen)
-                await self.hub.async_set(f"{self.base}/EffectIndex", idx)
-        if not self._has_levels:
-            return
+                patch.update(effect=effect, source=self.screen)
         if ATTR_BRIGHTNESS in kwargs:
-            await self.hub.async_set(f"{self.base}/Brightness", int(kwargs[ATTR_BRIGHTNESS]))
-        if not self.hub.value(f"{self.base}/On", 1):
-            await self.hub.async_set(f"{self.base}/On", 1)
+            patch["brightness"] = int(kwargs[ATTR_BRIGHTNESS])
+        if not self.is_on:
+            patch["on"] = True
+        if patch:
+            await self.hub.async_patch_screen(self.screen, patch)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        if self._has_levels:
-            await self.hub.async_set(f"{self.base}/On", 0)
-        else:
-            await self.hub.async_set(f"{self.base}/EffectIndex", NO_EFFECT)
+        await self.hub.async_patch_screen(self.screen, {"on": False})
 
 
 class ColorParameter(NoParameters, EffectParameter, LightEntity):
-    """A colour of an effect, e.g. "myColor" of SingleColorEffect. Off is black."""
+    """A colour of an effect, e.g. "color" of Single Color. Off is black."""
 
     _attr_color_mode = ColorMode.RGB
     _attr_supported_color_modes = {ColorMode.RGB}
 
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:
-        v = self.hub.value(self.path)
+        v = self.lamp_value
         return tuple(v[:3]) if isinstance(v, list) and len(v) >= 3 else None
 
     @property
@@ -264,7 +250,7 @@ class ColorParameter(NoParameters, EffectParameter, LightEntity):
         if ATTR_BRIGHTNESS in kwargs:
             top = max(rgb) or 1
             rgb = [round(c * kwargs[ATTR_BRIGHTNESS] / top) for c in rgb]
-        await self.hub.async_set(self.path, rgb)
+        await self.async_send([int(c) for c in rgb])
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self.hub.async_set(self.path, [0, 0, 0])
+        await self.async_send([0, 0, 0])

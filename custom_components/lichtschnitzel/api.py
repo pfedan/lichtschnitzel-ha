@@ -1,7 +1,7 @@
-"""Client for the HTTP and WebSocket API of a Lichtschnitzel lamp (firmware-esp32/API.md).
+"""Client for the HTTP and WebSocket API of a Lichtschnitzel lamp (firmware/API.md, version 2).
 
-Independent of Home Assistant apart from aiohttp, so it can be tested against the mock
-(firmware-esp32/tools/mock_api.py) or the Effektlabor behind tools/lab_bridge.py.
+Independent of Home Assistant apart from aiohttp, so it can be tested against the simulator of
+the firmware (lz_sim) or the Effektlabor behind firmware/tools/lab_bridge.py.
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from typing import Any
 import aiohttp
 
 TIMEOUT = aiohttp.ClientTimeout(total=10)
+API_VERSION = 2
 
 
 class LichtschnitzelError(Exception):
@@ -28,6 +29,10 @@ class CannotConnect(LichtschnitzelError):
 
 class AuthFailed(LichtschnitzelError):
     """The lamp wants a password for "control", and the one given is missing or wrong."""
+
+
+class UnsupportedFirmware(LichtschnitzelError):
+    """The lamp speaks another version of the API than this integration."""
 
 
 class LichtschnitzelClient:
@@ -57,7 +62,7 @@ class LichtschnitzelClient:
                 if err.status == 401 and err.code == "auth" and attempt == 0:
                     await self.login()  # tokens are gone after a reboot of the lamp
                 elif err.status == 503 and err.code == "busy" and attempt < 2:
-                    await asyncio.sleep(0.2)  # the render task did not answer within 200 ms
+                    await asyncio.sleep(0.2)  # the lamp is busy with another request
                 else:
                     raise
         raise LichtschnitzelError("no answer", "busy", 503)
@@ -83,14 +88,21 @@ class LichtschnitzelClient:
     async def info(self) -> dict:
         return await self.request("GET", "/api/info")
 
-    async def tree(self) -> dict:
-        return await self.request("GET", "/api/tree")
+    async def state(self) -> dict:
+        """GET /api/state: {"revision", "frameLength", "lamp": {"on", "brightness"}, "screens": [16 screens]}."""
+        return await self.request("GET", "/api/state")
 
     async def effects(self) -> list[dict]:
+        """GET /api/effects: [{"id", "name", "preset", "midi", "params": [{"id", "name", "group", "type", ...}]}]."""
         return await self.request("GET", "/api/effects")
 
-    async def set_property(self, path: str, value: Any) -> dict:
-        return await self.request("PUT", "/api/property", {"path": path, "value": value})
+    async def patch_lamp(self, patch: dict) -> dict:
+        """Changes "on" and "brightness" of the lamp; the answer is the lamp as it is then."""
+        return await self.request("PATCH", "/api/lamp", patch)
+
+    async def patch_screen(self, screen: int, patch: dict) -> dict:
+        """Changes fields of a screen in one step; the answer is the whole screen as it is then."""
+        return await self.request("PATCH", f"/api/screens/{screen}", patch)
 
     async def next_preset(self, screen: int) -> None:
         await self.request("POST", f"/api/screens/{screen}/next-preset")
@@ -105,15 +117,9 @@ class LichtschnitzelClient:
         """A plain POST, e.g. /api/notify or /api/indicators (firmware API.md)."""
         return await self.request("POST", path, body)
 
-    async def scenes(self) -> dict | None:
-        """GET /api/scenes: {"scenes": [{"index", "name"}], "active", "modified", "max"}; None on
-        firmware without scenes."""
-        try:
-            return await self.request("GET", "/api/scenes")
-        except LichtschnitzelError as err:
-            if err.status == 404:
-                return None
-            raise
+    async def scenes(self) -> dict:
+        """GET /api/scenes: {"scenes": [{"index", "name"}], "active", "modified", "max"}."""
+        return await self.request("GET", "/api/scenes")
 
     async def activate_scene(self, index: int | None = None, name: str | None = None) -> dict:
         body = {"index": index} if index is not None else {"name": name}
@@ -126,8 +132,14 @@ class LichtschnitzelClient:
         await self.request("POST", "/api/reboot")
 
     async def check_access(self) -> dict:
-        """The lamp's info, after making sure the tree can be read (logs in if it has to)."""
+        """The lamp's info, after making sure it speaks this API and its state can be read (logs in
+        if it has to)."""
         info = await self.info()
+        if info.get("api") != API_VERSION:
+            raise UnsupportedFirmware(
+                f"the lamp's firmware speaks API version {info.get('api')}, this integration needs version {API_VERSION}",
+                "api",
+            )
         try:
             await self._call("GET", "/api/effects")
         except LichtschnitzelError as err:
@@ -139,7 +151,7 @@ class LichtschnitzelClient:
         return info
 
     async def ws_connect(self) -> aiohttp.ClientWebSocketResponse:
-        """The lamp's WebSocket (status every second, "changed" after writes)."""
+        """The lamp's WebSocket: its status every second, and every change as it happens."""
         for attempt in range(2):
             url = f"{self.base}/api/ws" + (f"?token={self.token}" if self.token else "")
             try:

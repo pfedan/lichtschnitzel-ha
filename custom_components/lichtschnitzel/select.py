@@ -29,13 +29,9 @@ class SceneSelect(LichtschnitzelEntity, SelectEntity):
     def __init__(self, hub: LichtschnitzelHub) -> None:
         super().__init__(hub, "scene")
 
-    @property
-    def available(self) -> bool:
-        return super().available and self.hub.scenes is not None
-
     def _modified_option(self) -> str | None:
         scene = self.hub.active_scene()
-        if scene is None or not (self.hub.scenes or {}).get("modified"):
+        if scene is None or not self.hub.scenes.get("modified"):
             return None
         word = "geändert" if (self.hass.config.language or "").startswith("de") else "changed"
         return f"{scene['name']} ({word})"
@@ -55,7 +51,7 @@ class SceneSelect(LichtschnitzelEntity, SelectEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        scenes = self.hub.scenes or {}
+        scenes = self.hub.scenes
         scene = self.hub.active_scene()
         return {
             "index": scene["index"] if scene else None,

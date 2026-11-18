@@ -26,7 +26,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntr
             add([PresetButton(hub, i), ResetButton(hub, i)])
 
     discover()
-    entry.async_on_unload(hub.add_tree_listener(discover))
+    entry.async_on_unload(hub.add_screen_listener(discover))
 
 
 class PresetButton(ScreenEntity, ButtonEntity):
@@ -37,11 +37,10 @@ class PresetButton(ScreenEntity, ButtonEntity):
 
     @property
     def available(self) -> bool:
-        return super().available and self.hub.effect_of(self.screen) is not None
+        return super().available and bool((self.hub.effect_of(self.screen) or {}).get("preset"))
 
     async def async_press(self) -> None:
-        await self.hub.client.next_preset(self.screen)
-        self.hub.reload_tree_soon(0)  # a preset changes values without "changed" messages
+        await self.hub.client.next_preset(self.screen)  # the lamp tells the new values as an event
 
 
 class ResetButton(ScreenEntity, ButtonEntity):
@@ -57,7 +56,6 @@ class ResetButton(ScreenEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.hub.client.reset_effect(self.screen)
-        self.hub.reload_tree_soon(0)
 
 
 class SaveButton(LichtschnitzelEntity, ButtonEntity):

@@ -52,12 +52,11 @@ class LichtschnitzelEntity(Entity):
 
 
 class ScreenEntity(LichtschnitzelEntity):
-    """Something of one screen: named after its Label, available while the screen has LEDs."""
+    """Something of one screen: named after its label, available while the screen has LEDs."""
 
     def __init__(self, hub: LichtschnitzelHub, screen: int, key: str, suffix: str | None) -> None:
         super().__init__(hub, f"screen{screen}-{key}")
         self.screen = screen
-        self.base = hub.screen_path(screen)
         self._suffix = suffix
 
     @property

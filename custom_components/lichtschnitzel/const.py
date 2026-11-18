@@ -6,11 +6,7 @@ MDNS_TYPE = "_lichtschnitzel._tcp.local."
 CONF_PASSWORD = "password"
 DEFAULT_PORT = 80
 
-FBM = "FramebufferManager"
-NUM_SCREENS = 16  # FramebufferManager::kNumScreens
-NO_EFFECT = 4294967295  # EffectIndex of a screen without effect (UINT_MAX)
-
-PARAM_TYPES = ("float", "uint32", "Rgb")  # effect parameters HA can set
+NUM_SCREENS = 16  # the lamp always has 16 screens; one without LEDs is unused
 
 PLATFORMS = ["light", "button", "number", "switch", "select", "sensor", "binary_sensor"]
 

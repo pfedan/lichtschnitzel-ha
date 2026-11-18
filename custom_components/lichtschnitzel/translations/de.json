@@ -28,12 +28,14 @@
       "cannot_connect": "Die Lampe ist nicht erreichbar.",
       "invalid_auth": "Falsches Passwort.",
       "password_needed": "Die Lampe braucht ein Passwort für die Steuerung.",
-      "unknown": "Die Lampe hat mit einem Fehler geantwortet."
+      "unknown": "Die Lampe hat mit einem Fehler geantwortet.",
+      "unsupported_firmware": "Die Firmware der Lampe ist für diese Integration zu alt oder zu neu (sie braucht API-Version 2). Bitte Firmware und Web-UI der Lampe aktualisieren."
     },
     "abort": {
       "already_configured": "Diese Lampe ist schon eingerichtet.",
       "cannot_connect": "Die Lampe ist nicht erreichbar.",
-      "reauth_successful": "Passwort aktualisiert."
+      "reauth_successful": "Passwort aktualisiert.",
+      "unsupported_firmware": "Die Firmware der Lampe ist für diese Integration zu alt oder zu neu (sie braucht API-Version 2). Bitte Firmware und Web-UI der Lampe aktualisieren."
     }
   },
   "entity": {
@@ -104,7 +106,7 @@
       "fields": {
         "parameter": {
           "name": "Parameter",
-          "description": "Name des Parameters wie im Attribut \"parameters\" der Leuchte, z. B. Speed oder Flying Emitters/Period Length."
+          "description": "ID des Parameters: der \"key\" im Attribut \"parameters\" der Leuchte, z. B. speed oder period_length."
         },
         "value": {
           "name": "Wert",

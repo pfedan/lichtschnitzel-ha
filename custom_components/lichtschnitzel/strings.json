@@ -28,12 +28,14 @@
       "cannot_connect": "The lamp is not reachable.",
       "invalid_auth": "Wrong password.",
       "password_needed": "The lamp needs a password for control.",
-      "unknown": "The lamp answered with an error."
+      "unknown": "The lamp answered with an error.",
+      "unsupported_firmware": "The lamp's firmware is too old or too new for this integration (it needs API version 2). Update the firmware and its web UI."
     },
     "abort": {
       "already_configured": "This lamp is already set up.",
       "cannot_connect": "The lamp is not reachable.",
-      "reauth_successful": "Password updated."
+      "reauth_successful": "Password updated.",
+      "unsupported_firmware": "The lamp's firmware is too old or too new for this integration (it needs API version 2). Update the firmware and its web UI."
     }
   },
   "entity": {
@@ -104,7 +106,7 @@
       "fields": {
         "parameter": {
           "name": "Parameter",
-          "description": "Name of the parameter as in the light's \"parameters\" attribute, e.g. Speed or Flying Emitters/Period Length."
+          "description": "Id of the parameter: the \"key\" in the light's \"parameters\" attribute, e.g. speed or period_length."
         },
         "value": {
           "name": "Value",
