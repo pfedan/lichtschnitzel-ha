@@ -1,4 +1,4 @@
-"""Numeric effect parameters (Speed, Palette, ...) with the limits from the lamp's tree."""
+"""Numeric effect parameters (Speed, Palette, ...) with the limits the lamp gives for them."""
 from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity, NumberMode
@@ -11,38 +11,37 @@ from .params import EffectParameter, ParameterTracker
 
 async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntry, add: AddEntitiesCallback) -> None:
     hub = entry.runtime_data
-    params = ParameterTracker(hub, {"float", "uint32"})
+    params = ParameterTracker(hub, {"float", "uint"})
 
     @callback
     def discover() -> None:
         add([ParameterNumber(hub, p) for p in params.new()])
 
     discover()
-    entry.async_on_unload(hub.add_tree_listener(discover))
+    entry.async_on_unload(hub.add_screen_listener(discover))
 
 
 class ParameterNumber(EffectParameter, NumberEntity):
     _attr_mode = NumberMode.SLIDER
 
-    def _node(self) -> dict:
-        n = self.hub.node(self.path)
-        return n if isinstance(n, dict) else {}
-
     @property
     def native_value(self) -> float | None:
-        return self._node().get("val")
+        v = self.lamp_value
+        if isinstance(v, float):  # the lamp's floats are 32 bit: 0.1 may arrive as 0.10000000149
+            v = float(f"{v:.7g}")
+        return v
 
     @property
     def native_min_value(self) -> float:
-        return float(self._node().get("min", 0))
+        return float(self._definition().get("min", 0))
 
     @property
     def native_max_value(self) -> float:
-        return float(self._node().get("max", 255))
+        return float(self._definition().get("max", 255))
 
     @property
     def native_step(self) -> float:
-        if self.param.kind == "uint32":
+        if self.param.kind == "uint":
             return 1
         span = self.native_max_value - self.native_min_value
         return span / 100 if span > 0 else 0.01
@@ -51,4 +50,4 @@ class ParameterNumber(EffectParameter, NumberEntity):
         return (self.available, self.native_value, self.name)
 
     async def async_set_native_value(self, value: float) -> None:
-        await self.hub.async_set(self.path, int(round(value)) if self.param.kind == "uint32" else float(value))
+        await self.async_send(int(round(value)) if self.param.kind == "uint" else float(value))

@@ -1,4 +1,4 @@
-"""Mirroring per screen (Screen <i>/Mirror)."""
+"""Mirroring per screen ("mirror")."""
 from __future__ import annotations
 
 from typing import Any
@@ -22,7 +22,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntr
         add([MirrorSwitch(hub, i) for i in new_screens(hub, done)])
 
     discover()
-    entry.async_on_unload(hub.add_tree_listener(discover))
+    entry.async_on_unload(hub.add_screen_listener(discover))
 
 
 class MirrorSwitch(ScreenEntity, SwitchEntity):
@@ -34,10 +34,10 @@ class MirrorSwitch(ScreenEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return bool(self.hub.value(f"{self.base}/Mirror", 0))
+        return bool(self.hub.screen(self.screen).get("mirror"))
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self.hub.async_set(f"{self.base}/Mirror", 1)
+        await self.hub.async_patch_screen(self.screen, {"mirror": True})
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self.hub.async_set(f"{self.base}/Mirror", 0)
+        await self.hub.async_patch_screen(self.screen, {"mirror": False})

@@ -5,6 +5,7 @@ would otherwise leave hundreds of entities."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.const import EntityCategory
 
@@ -16,23 +17,13 @@ from .hub import LichtschnitzelHub
 @dataclass(frozen=True)
 class Param:
     screen: int
-    effect: str  # EffectFactory key, e.g. "AuroraEffect"
-    rel: str  # path inside the instance, e.g. "Speed" or "Flying Emitters/Period Length"
-    kind: str  # "float", "uint32" or "Rgb"
-
-
-def _walk(node: dict, prefix: str, kinds: set[str], out: list[tuple[str, str]]) -> None:
-    for key, p in node.items():
-        if key == "name" or not isinstance(p, dict) or p.get("internal"):
-            continue
-        if p.get("type") == "pobj":
-            _walk(p, prefix + key + "/", kinds, out)
-        elif p.get("type") in kinds:
-            out.append((prefix + key, p["type"]))
+    effect: str  # id of the effect, e.g. "aurora"
+    param: str  # id of the parameter, e.g. "speed"
+    kind: str  # "float", "uint" or "color"
 
 
 class ParameterTracker:
-    """Finds parameters of the current instances that have no entity yet."""
+    """Finds parameters of the effects the screens run that have no entity yet."""
 
     def __init__(self, hub: LichtschnitzelHub, kinds: set[str]) -> None:
         self.hub = hub
@@ -42,19 +33,14 @@ class ParameterTracker:
     def new(self) -> list[Param]:
         out = []
         for i in range(NUM_SCREENS):
-            effects = self.hub.node(f"{self.hub.screen_path(i)}/Effects")
-            if not isinstance(effects, dict) or not self.hub.screen_used(i):
+            effect = self.hub.effect(self.hub.screen(i).get("effect"))
+            if effect is None or not self.hub.screen_used(i):
                 continue
-            for key, inst in effects.items():
-                if not isinstance(inst, dict) or inst.get("type") != "pobj":
-                    continue
-                found: list[tuple[str, str]] = []
-                _walk(inst, "", self.kinds, found)
-                for rel, kind in found:
-                    p = Param(i, key, rel, kind)
-                    if p not in self.seen:
-                        self.seen.add(p)
-                        out.append(p)
+            for p in effect.get("params", []):
+                item = Param(i, effect["id"], p["id"], p["type"])
+                if p["type"] in self.kinds and item not in self.seen:
+                    self.seen.add(item)
+                    out.append(item)
         return out
 
 
@@ -63,16 +49,32 @@ class EffectParameter(ScreenEntity):
     _attr_entity_registry_enabled_default = False
 
     def __init__(self, hub: LichtschnitzelHub, param: Param) -> None:
-        super().__init__(hub, param.screen, f"{param.effect}-{param.rel}", None)
+        super().__init__(hub, param.screen, f"{param.effect}-{param.param}", None)
         self.param = param
-        self.path = f"{self.base}/Effects/{param.effect}/{param.rel}"
+
+    def _definition(self) -> dict:
+        effect = self.hub.effect(self.param.effect) or {}
+        return next((p for p in effect.get("params", []) if p["id"] == self.param.param), {})
 
     @property
     def name(self) -> str:
-        fx = next((e["name"] for e in self.hub.effects if e.get("key") == self.param.effect), self.param.effect)
-        rel = self.param.rel.replace("/", " ")
-        return f"{self.hub.screen_label(self.screen)} {fx} {rel}"
+        effect = self.hub.effect(self.param.effect) or {}
+        p = self._definition()
+        words = [self.hub.screen_label(self.screen), effect.get("name", self.param.effect), p.get("group", ""), p.get("name", self.param.param)]
+        return " ".join(w for w in words if w)
 
     @property
     def available(self) -> bool:
-        return super().available and self.hub.has(self.path)
+        # While the screen's own effect is this one. (A screen that shows another screen's effect
+        # keeps its own; its values are kept and can be set, they show once it is on its own again.)
+        return super().available and self.hub.screen(self.screen).get("effect") == self.param.effect and bool(self._definition())
+
+    @property
+    def lamp_value(self) -> Any:
+        """The value on the lamp, None while the screen runs another effect."""
+        if self.hub.screen(self.screen).get("effect") != self.param.effect:
+            return None
+        return (self.hub.screen(self.screen).get("params") or {}).get(self.param.param)
+
+    async def async_send(self, value: Any) -> None:
+        await self.hub.async_patch_screen(self.screen, {"params": {self.param.param: value}})

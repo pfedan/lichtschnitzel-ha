@@ -10,8 +10,8 @@
 // light.turn_on/turn_off and lichtschnitzel.set_parameter.
 
 const TEXT = {
-  en: { brightness: 'Brightness', effect: 'Effect', off: 'The screen is off.', none: 'This effect has no parameters.', missing: 'Entity not found', unavailable: 'Unavailable', needEntity: 'Set "entity" or "entities" to screens of a Lichtschnitzel lamp.' },
-  de: { brightness: 'Helligkeit', effect: 'Effekt', off: 'Der Screen ist aus.', none: 'Dieser Effekt hat keine Parameter.', missing: 'Entität nicht gefunden', unavailable: 'Nicht verfügbar', needEntity: '"entity" oder "entities" auf Screens einer Lichtschnitzel-Lampe setzen.' },
+  en: { brightness: 'Brightness', effect: 'Effect', trigger: 'Trigger', off: 'The screen is off.', none: 'This effect has no parameters.', missing: 'Entity not found', unavailable: 'Unavailable', needEntity: 'Set "entity" or "entities" to screens of a Lichtschnitzel lamp.' },
+  de: { brightness: 'Helligkeit', effect: 'Effekt', trigger: 'Auslösen', off: 'Der Screen ist aus.', none: 'Dieser Effekt hat keine Parameter.', missing: 'Entität nicht gefunden', unavailable: 'Nicht verfügbar', needEntity: '"entity" oder "entities" auf Screens einer Lichtschnitzel-Lampe setzen.' },
 };
 
 const STYLE = `
@@ -26,6 +26,7 @@ const STYLE = `
   .row.wide { grid-template-columns: minmax(6em, 38%) 1fr; }
   input[type=range] { width: 100%; accent-color: var(--primary-color); margin: 0; }
   input[type=color] { width: 56px; height: 30px; border: 1px solid var(--divider-color); border-radius: 6px; background: none; padding: 2px; cursor: pointer; }
+  button { font: inherit; color: var(--primary-text-color); background: none; border: 1px solid var(--divider-color); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
   select { width: 100%; font: inherit; color: var(--primary-text-color); background: var(--card-background-color, var(--ha-card-background));
            border: 1px solid var(--divider-color); border-radius: 6px; padding: 6px 8px; }
   .params { margin-top: 4px; }
@@ -41,7 +42,7 @@ const STYLE = `
 
 const hex = rgb => '#' + (rgb || [0, 0, 0]).map(c => Math.max(0, Math.min(255, c | 0)).toString(16).padStart(2, '0')).join('');
 const unhex = h => [1, 3, 5].map(n => parseInt(h.slice(n, n + 2), 16));
-const label = key => key.split('/').join(' › ');
+const label = p => (p.group ? p.group + ' › ' : '') + (p.name || p.key);
 
 class LichtschnitzelCard extends HTMLElement {
   setConfig(config) {
@@ -79,7 +80,7 @@ class LichtschnitzelCard extends HTMLElement {
     const shape = JSON.stringify([this._hass.language, states.map((s, i) => s
       ? [s.state, s.attributes.friendly_name, s.attributes.effect, (s.attributes.effect_list || []).length,
          'brightness' in s.attributes || (s.attributes.supported_color_modes || []).includes('brightness'),
-         (s.attributes.parameters || []).map(p => [p.key, p.type, p.min, p.max])]
+         (s.attributes.parameters || []).map(p => [p.key, p.type, p.min, p.max, !!p.trigger])]
       : this._config.entities[i])]);
     if (shape !== this._shape) {
       this._shape = shape;
@@ -148,21 +149,31 @@ class LichtschnitzelCard extends HTMLElement {
       for (const p of ps) {
         const send = v => this._call('lichtschnitzel', 'set_parameter', { parameter: p.key, value: v }, id);
         const find = st => (st.attributes.parameters || []).find(q => q.key === p.key);
-        if (p.type === 'Rgb') {
+        if (p.trigger) {
+          // Something that happens once; its value says where on the screen (min to max).
+          const row = document.createElement('div');
+          row.className = 'row wide';
+          row.innerHTML = `<label></label><div><button type="button"></button></div>`;
+          row.firstChild.textContent = row.firstChild.title = label(p);
+          const button = row.querySelector('button');
+          button.textContent = this._t('trigger');
+          button.addEventListener('click', () => send(p.min + Math.random() * (p.max - p.min)));
+          params.appendChild(row);
+        } else if (p.type === 'color') {
           const row = document.createElement('div');
           row.className = 'row wide';
           row.innerHTML = `<label></label><div><input type="color"></div>`;
-          row.firstChild.textContent = row.firstChild.title = label(p.key);
+          row.firstChild.textContent = row.firstChild.title = label(p);
           const input = row.querySelector('input');
           input.addEventListener('input', this._throttle(() => send(unhex(input.value))));
           input.addEventListener('change', () => send(unhex(input.value)));
           params.appendChild(row);
           this._rows.push({ id, el: input, get: st => hex((find(st) || {}).value), set: (el, v) => (el.value = v) });
         } else {
-          const int = p.type === 'uint32';
+          const int = p.type === 'uint';
           const step = int ? 1 : (p.max - p.min) / 200 || 0.01;
           const fmt = v => (int ? String(v) : (+v).toFixed(Math.abs(p.max - p.min) >= 20 ? 1 : 2));
-          const r = this._slider(label(p.key), p.min, p.max, step, fmt, send);
+          const r = this._slider(label(p), p.min, p.max, step, fmt, send);
           params.appendChild(r.row);
           this._rows.push({ id, el: r.input, out: r.val, get: st => (find(st) || {}).value ?? p.min, set: (el, v) => (el.value = v), fmt });
         }

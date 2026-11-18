@@ -6,7 +6,7 @@ set_parameter:
   fields:
     parameter:
       required: true
-      example: Speed
+      example: speed
       selector:
         text:
     value:

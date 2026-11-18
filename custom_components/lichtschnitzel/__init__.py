@@ -1,7 +1,7 @@
 """Lichtschnitzel LED controllers in Home Assistant.
 
-Talks to the lamp's own HTTP and WebSocket API (firmware-esp32/API.md in pfedan/lichtschnitzel):
-one WebSocket per lamp keeps the state live, writes go the same way.
+Talks to the lamp's own HTTP and WebSocket API (firmware/API.md in pfedan/lichtschnitzel, version 2):
+one WebSocket per lamp keeps the state live, values are written the same way.
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from homeassistant.helpers.service import async_register_platform_entity_service
 from homeassistant.helpers.typing import ConfigType
 
 from .api import AuthFailed, LichtschnitzelClient, LichtschnitzelError
+from .migrate import async_migrate_unique_ids
 from .const import CARD_URL, CONF_PASSWORD, DEFAULT_PORT, DOMAIN, NOTIFY_PATTERNS, PLATFORMS
 from .hub import LichtschnitzelHub
 
@@ -142,6 +143,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntr
     except LichtschnitzelError as err:
         raise ConfigEntryNotReady(str(err)) from err
     entry.runtime_data = hub
+    async_migrate_unique_ids(hass, entry, hub.effects)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     hub.start()
     return True

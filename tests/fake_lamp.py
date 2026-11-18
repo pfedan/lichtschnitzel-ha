@@ -1,4 +1,4 @@
-"""A small lamp in the test's event loop: the parts of firmware-esp32/API.md the integration uses."""
+"""A small lamp in the test's event loop: the parts of firmware/API.md (version 2) the integration uses."""
 from __future__ import annotations
 
 import copy
@@ -7,73 +7,78 @@ import json
 from aiohttp import WSMsgType, web
 from aiohttp.test_utils import TestServer
 
-UINT_MAX = 4294967295
 
-
-def U(v, lo=0, hi=255):
-    return {"val": v, "type": "uint32", "min": lo, "max": hi}
-
-
-def F(v, lo=0.0, hi=1.0):
-    return {"val": v, "type": "float", "min": lo, "max": hi}
+def number(pid, name, kind, lo, hi, default, group="", **more):
+    return dict({"id": pid, "name": name, "group": group, "type": kind, "min": lo, "max": hi, "default": default}, **more)
 
 
 EFFECTS = [
-    ("SingleColorEffect", "Single Color", {"myColor": {"val": [255, 120, 30], "type": "Rgb"}}),
-    ("AuroraEffect", "Aurora", {"Speed": F(1.0, 0.2, 3.0), "Palette": U(0, 0, 2)}),
+    {"id": "single_color", "name": "Single Color", "preset": True, "midi": False,
+     "params": [{"id": "color", "name": "myColor", "group": "", "type": "color", "default": [255, 120, 30]}]},
+    {"id": "aurora", "name": "Aurora", "preset": True, "midi": False,
+     "params": [number("speed", "Speed", "float", 0.2, 3.0, 1.0), number("palette", "Palette", "uint", 0, 2, 0)]},
+    {"id": "nova_missile", "name": "Nova Missile", "preset": False, "midi": False,
+     "params": [number("period_length", "Period Length", "float", 0.1, 40.0, 10.0, "Flying Emitters"),
+                {"id": "spawn_collide_particle", "name": "Spawn CollideParticle", "group": "Flying Emitters", "type": "float",
+                 "min": 0.0, "max": 1.0, "trigger": True}]},
 ]
+BY_ID = {e["id"]: e for e in EFFECTS}
 
 
-def screen(off, length, eff):
-    return {"Offset": U(off, 0, 0), "Length": U(length, 0, 0), "EffectIndex": U(eff, 0, 0), "Mirror": U(0, 0, 1),
-            "Source": U(0, 0, 15), "On": U(1, 0, 1), "Brightness": U(255, 0, 255), "Label": {"val": "", "type": "string"},
-            "Effect": {"name": {"val": "none", "type": "string", "internal": True}, "type": "pobj"},
-            "Effects": {"type": "pobj"}, "Settings": {"type": "pobj"}, "type": "pobj"}
+def error(status: int, code: str, message: str = "") -> web.Response:
+    return web.json_response({"error": code, "message": message or code}, status=status)
+
+
+class Refused(Exception):
+    pass
 
 
 class FakeLamp:
     def __init__(self, password: str | None = None, supply: bool = True) -> None:
         self.password = password
         self.supply = supply
+        self.api = 2
         self.tokens: set[str] = set()
-        self.revision = 0
+        self.revision = 1
         self.uptime = 100
         self.info_id = "aa:bb:cc:dd:ee:ff"
         self.clients: set[web.WebSocketResponse] = set()
-        self.writes: list[tuple[str, object]] = []
-        self.notifications: list[dict] = []  # (path, body) of POST /api/notify and /api/indicators
+        self.writes: list[tuple[object, dict]] = []  # ("lamp" or the screen, the patch as it came)
+        self.state_reads = 0  # how often GET /api/state was asked
+        self.notifications: list[tuple[str, dict]] = []  # (path, body) of POST /api/notify and /api/indicators
         self.indicator_count = 0  # "indicators" of /api/info
-        self.can_notify = True  # False: firmware without notifications (404)
-        # Scenes: index -> (name, screens); None for firmware without them.
-        self.scenes: dict[int, tuple[str, dict]] | None = {}
+        self.can_notify = True  # False: the request fails with 404
+        self.scenes: dict[int, tuple[str, list, list]] = {}  # index -> (name, screens, what they remember)
         self.scene_active: int | None = None
         self.scene_modified = False
         self.scene_list = 0
-        fbm = {f"Screen {i}": screen(0, 0, UINT_MAX) for i in range(16)}
-        fbm["Screen 0"] = screen(0, 100, 1)
-        fbm["Screen 1"] = screen(100, 50, 0)
-        fbm["Screen 1"]["Source"]["val"] = 1
-        for i in range(16):
-            fbm[f"Screen {i}"]["Source"]["val"] = i
-        fbm.update({"Length": U(151, 0, 0), "LateFrames": U(0, 0, 0), "On": U(1, 0, 1), "Brightness": U(255, 0, 255), "type": "pobj"})
-        self.tree = {"FramebufferManager": fbm, "EventMapper": {"type": "pobj"}}
-        for i in range(16):
-            self.bind(i)
+        self.lamp = {"on": True, "brightness": 255}
+        self.screens = [
+            {"index": i, "begin": 0, "length": 0, "mirror": False, "on": True, "brightness": 255, "source": i, "shows": i,
+             "label": "", "effect": None, "params": {}, "starved": False}
+            for i in range(16)
+        ]
+        self.memory: list[dict[str, dict]] = [{} for _ in range(16)]  # per screen: effect id -> its values
+        self.screens[0].update(length=100)
+        self.screens[1].update(begin=100, length=50)
+        self.show(0, "aurora")
+        self.show(1, "single_color")
         app = web.Application()
-        app.router.add_get("/api/info", self.info)
-        app.router.add_get("/api/effects", self.effects)
-        app.router.add_get("/api/tree", self.get_tree)
-        app.router.add_put("/api/property", self.put_property)
+        app.router.add_get("/api/info", self.get_info)
+        app.router.add_get("/api/effects", self.guarded(lambda r: web.json_response(EFFECTS)))
+        app.router.add_get("/api/state", self.guarded(self.get_state))
+        app.router.add_patch("/api/lamp", self.guarded(self.http_patch_lamp))
+        app.router.add_patch("/api/screens/{i}", self.guarded(self.http_patch_screen))
         app.router.add_post("/api/login", self.login)
-        app.router.add_post("/api/screens/{i}/{action}", self.screen_action)
-        app.router.add_post("/api/save", self.ok)
-        app.router.add_post("/api/reboot", self.ok)
-        app.router.add_get("/api/scenes", self.get_scenes)
-        app.router.add_post("/api/scenes", self.post_scene)
-        app.router.add_post("/api/scenes/activate", self.post_activate)
-        app.router.add_post("/api/notify", self.post_notify)
-        app.router.add_post("/api/indicators", self.post_notify)
-        app.router.add_post("/api/indicators/clear", self.post_notify)
+        app.router.add_post("/api/screens/{i}/{action}", self.guarded(self.screen_action))
+        app.router.add_post("/api/save", self.guarded(self.ok))
+        app.router.add_post("/api/reboot", self.guarded(self.ok))
+        app.router.add_get("/api/scenes", self.guarded(lambda r: web.json_response(self.scenes_json())))
+        app.router.add_post("/api/scenes", self.guarded(self.post_scene))
+        app.router.add_post("/api/scenes/activate", self.guarded(self.post_activate))
+        app.router.add_post("/api/notify", self.guarded(self.post_notify))
+        app.router.add_post("/api/indicators", self.guarded(self.post_notify))
+        app.router.add_post("/api/indicators/clear", self.guarded(self.post_notify))
         app.router.add_get("/api/ws", self.ws)
         self.server = TestServer(app, host="127.0.0.1")
 
@@ -89,56 +94,82 @@ class FakeLamp:
     def port(self) -> int:
         return self.server.port
 
-    def scr(self, i: int) -> dict:
-        return self.tree["FramebufferManager"][f"Screen {i}"]
+    # ---- the model
+    def show(self, i: int, effect: str | None) -> None:
+        """Screen i gets this effect, with the values it remembers for it."""
+        s = self.screens[i]
+        s["effect"] = effect
+        if effect is None:
+            s["params"] = {}
+            return
+        values = self.memory[i].setdefault(effect, {})
+        s["params"] = {p["id"]: values.get(p["id"], p["default"]) for p in BY_ID[effect]["params"] if not p.get("trigger")}
 
-    def bind(self, i: int) -> None:
-        s = self.scr(i)
-        eff = s["EffectIndex"]["val"]
-        if not s["On"]["val"] or eff >= len(EFFECTS):
-            s["Effects"] = {"type": "pobj"}
-            s["Effect"] = {"name": {"val": "none", "type": "string", "internal": True}, "type": "pobj"}
-        else:
-            key, name, props = EFFECTS[eff]
-            if key not in s["Effects"]:
-                s["Effects"] = {key: dict(copy.deepcopy(props), name={"val": name, "type": "string", "internal": True}, type="pobj"), "type": "pobj"}
-            s["Effect"] = s["Effects"][key]
+    def follow_sources(self) -> None:
+        for s in self.screens:
+            at, seen = s["index"], set()
+            while self.screens[at]["source"] != at and at not in seen:
+                seen.add(at)
+                at = self.screens[at]["source"]
+            s["shows"] = at if self.screens[at]["source"] == at else s["index"]
+
+    def state_json(self) -> dict:
+        return {"revision": self.revision, "frameLength": 150, "lamp": dict(self.lamp), "screens": copy.deepcopy(self.screens)}
+
+    def apply_screen(self, i: int, patch: dict) -> None:
+        s = self.screens[i]
+        if "effect" in patch and patch["effect"] is not None and patch["effect"] not in BY_ID:
+            raise Refused("effect: the id of an effect, or null")
+        effect = patch.get("effect", s["effect"])
+        for pid in patch.get("params", {}):
+            if effect is None or not any(p["id"] == pid for p in BY_ID[effect]["params"]):
+                raise Refused(f"no such parameter: {pid}")
+        for k in ("begin", "length", "mirror", "on", "brightness", "source", "label"):
+            if k in patch:
+                s[k] = patch[k]
+        if "effect" in patch:
+            self.show(i, effect)
+        for pid, value in patch.get("params", {}).items():
+            p = next(p for p in BY_ID[effect]["params"] if p["id"] == pid)
+            if p["type"] != "color":
+                value = max(p["min"], min(p["max"], value))
+                value = int(round(value)) if p["type"] == "uint" else float(value)
+            if not p.get("trigger"):
+                s["params"][pid] = value
+                self.memory[i].setdefault(effect, {})[pid] = value
+        self.follow_sources()
+
+    async def patch_screen(self, i: int, patch: dict, origin: web.WebSocketResponse | None = None) -> dict:
+        """A change to a screen: by a request, by another client, or (called from a test) at the lamp itself."""
+        self.apply_screen(i, patch)
+        self.writes.append((i, patch))
         self.revision += 1
+        self.scene_modified = True
+        await self.broadcast({"type": "screen", "revision": self.revision, "screen": copy.deepcopy(self.screens[i])}, origin)
+        return self.screens[i]
 
+    async def patch_lamp(self, patch: dict, origin: web.WebSocketResponse | None = None) -> dict:
+        self.lamp.update({k: patch[k] for k in ("on", "brightness") if k in patch})
+        self.writes.append(("lamp", patch))
+        self.revision += 1
+        await self.broadcast(dict(self.lamp, type="lamp", revision=self.revision), origin)
+        return dict(self.lamp, revision=self.revision)
+
+    # ---- access
     def authorized(self, request: web.Request) -> bool:
         if not self.password:
             return True
         tok = request.headers.get("Authorization", "")[7:] or request.query.get("token", "")
         return tok in self.tokens
 
-    def denied(self) -> web.Response:
-        return web.json_response({"error": "auth", "scope": "control"}, status=401)
+    def guarded(self, handler):
+        async def call(request: web.Request) -> web.StreamResponse:
+            if not self.authorized(request):
+                return web.json_response({"error": "auth", "scope": "control"}, status=401)
+            answer = handler(request)
+            return answer if isinstance(answer, web.StreamResponse) else await answer
 
-    def info_json(self) -> dict:
-        d = {"name": "Testlampe", "id": self.info_id, "version": "1.2.3", "api": 1, "uptimeS": self.uptime,
-             "revision": self.revision, "lateFrames": 0, "heapFree": 100000, "indicators": self.indicator_count,
-             "power": {"estimatedMa": 1234, "budgetMa": 3000, "scale": 1.0},
-             "wifi": {"state": "connected", "rssi": -60}}
-        if self.scenes is not None:
-            name = self.scenes[self.scene_active][0] if self.scene_active in self.scenes else None
-            d["scene"] = {"index": self.scene_active if name else None, "name": name,
-                          "modified": bool(name) and self.scene_modified, "list": self.scene_list}
-        if self.supply:
-            d["supply"] = {"source": "pd", "contractMv": 20000, "contractMa": 3000, "inputMa": 900, "efuseFault": False, "railsGood": True}
-        return d
-
-    async def info(self, request):
-        return web.json_response(self.info_json())
-
-    async def effects(self, request):
-        if not self.authorized(request):
-            return self.denied()
-        return web.json_response([{"index": i, "name": n, "key": k} for i, (k, n, _) in enumerate(EFFECTS)])
-
-    async def get_tree(self, request):
-        if not self.authorized(request):
-            return self.denied()
-        return web.json_response(self.tree)
+        return call
 
     async def login(self, request):
         body = await request.json()
@@ -148,120 +179,125 @@ class FakeLamp:
         self.tokens.add(tok)
         return web.json_response({"token": tok, "scope": "control"})
 
-    async def set(self, path: str, value) -> dict:
-        n = self.tree
-        for p in path.split("/"):
-            n = n.get(p) if isinstance(n, dict) else None
-        if not isinstance(n, dict) or "val" not in n:
-            raise web.HTTPNotFound(text=json.dumps({"error": "path"}))
-        if n["type"] == "uint32" and n["max"]:
-            value = max(n["min"], min(n["max"], int(value)))
-        n["val"] = value
-        self.writes.append((path, value))
-        if path.startswith("FramebufferManager/Screen "):
-            self.scene_modified = True
-        parts = path.split("/")
-        if len(parts) == 3 and parts[2] in ("EffectIndex", "On"):
-            self.bind(int(parts[1].split()[1]))
-        await self.broadcast({"type": "changed", "path": path, "value": value})
-        return {"path": path, "value": value}
+    # ---- requests
+    def info_json(self) -> dict:
+        d = {"name": "Testlampe", "id": self.info_id, "version": "2.0.0", "api": self.api, "uptimeS": self.uptime,
+             "revision": self.revision, "lateFrames": 0, "heapFree": 100000, "indicators": self.indicator_count,
+             "frameLength": 150, "power": {"estimatedMa": 1234, "budgetMa": 3000, "scale": 1.0},
+             "wifi": {"state": "connected", "rssi": -60}}
+        name = self.scenes[self.scene_active][0] if self.scene_active in self.scenes else None
+        d["scene"] = {"index": self.scene_active if name else None, "name": name,
+                      "modified": bool(name) and self.scene_modified, "list": self.scene_list}
+        if self.supply:
+            d["supply"] = {"source": "pd", "contractMv": 20000, "contractMa": 3000, "inputMa": 900, "efuseFault": False, "railsGood": True}
+        return d
 
-    async def put_property(self, request):
-        if not self.authorized(request):
-            return self.denied()
-        body = await request.json()
-        return web.json_response(await self.set(body["path"], body["value"]))
+    async def get_state(self, request):
+        self.state_reads += 1
+        return web.json_response(self.state_json())
+
+    async def get_info(self, request):
+        return web.json_response(self.info_json())
+
+    async def http_patch_lamp(self, request):
+        return web.json_response(await self.patch_lamp(await request.json()))
+
+    async def http_patch_screen(self, request):
+        try:
+            return web.json_response(await self.patch_screen(int(request.match_info["i"]), await request.json()))
+        except Refused as err:
+            return error(400, "request", str(err))
 
     async def screen_action(self, request):
-        if not self.authorized(request):
-            return self.denied()
         i = int(request.match_info["i"])
+        s = self.screens[self.screens[i]["shows"]]
+        if s["effect"] is None:
+            return error(400, "request", "the screen has no effect")
         if request.match_info["action"] == "next-preset":
-            pal = self.scr(i)["Effect"].get("Palette")
-            if pal:
-                pal["val"] = (pal["val"] + 1) % 3
-        self.revision += 1
+            if "palette" not in s["params"]:
+                return error(400, "request", "the effect has no presets")
+            await self.patch_screen(s["index"], {"params": {"palette": (s["params"]["palette"] + 1) % 3}})
+        else:
+            self.memory[s["index"]].pop(s["effect"], None)
+            await self.patch_screen(s["index"], {"effect": s["effect"]})
         return web.json_response({})
 
     # ---- scenes
-    def screens(self) -> dict:
-        return {k: v for k, v in self.tree["FramebufferManager"].items() if k.startswith("Screen ")}
-
     def scenes_json(self) -> dict:
-        return {"scenes": [{"index": i, "name": n} for i, (n, _) in sorted(self.scenes.items())],
+        return {"scenes": [{"index": i, "name": n} for i, (n, _, _) in sorted(self.scenes.items())],
                 "active": self.scene_active, "modified": self.scene_modified, "max": 16}
 
     async def store_scene(self, index: int, name: str) -> None:
         """POST /api/scenes, as the web UI would do it."""
-        self.scenes[index] = (name, copy.deepcopy(self.screens()))
+        self.scenes[index] = (name, copy.deepcopy(self.screens), copy.deepcopy(self.memory))
         self.scene_active, self.scene_modified = index, False
         self.scene_list += 1
         await self.broadcast(dict(self.scenes_json(), type="scenes"))
 
     async def post_scene(self, request):
         """Overwriting a scene by index (the name stays)."""
-        if not self.authorized(request):
-            return self.denied()
         i = (await request.json()).get("index")
-        if i not in (self.scenes or {}):
-            return web.json_response({"error": "notfound"}, status=404)
+        if i not in self.scenes:
+            return error(404, "notfound")
         await self.store_scene(i, self.scenes[i][0])
         return web.json_response({"index": i, "name": self.scenes[i][0]})
 
-    async def get_scenes(self, request):
-        if not self.authorized(request):
-            return self.denied()
-        if self.scenes is None:
-            return web.json_response({"error": "notfound"}, status=404)
-        return web.json_response(self.scenes_json())
-
     async def post_activate(self, request):
-        if not self.authorized(request):
-            return self.denied()
         body = await request.json()
         i = body.get("index")
-        if i not in (self.scenes or {}):
-            match = [k for k, (n, _) in (self.scenes or {}).items() if n.lower() == str(body.get("name", "")).lower()]
+        if i not in self.scenes:
+            match = [k for k, (n, _, _) in self.scenes.items() if n.lower() == str(body.get("name", "")).lower()]
             i = match[0] if match else None
         if i is None:
-            return web.json_response({"error": "notfound"}, status=404)
-        self.tree["FramebufferManager"].update(copy.deepcopy(self.scenes[i][1]))
+            return error(404, "notfound")
+        self.screens, self.memory = copy.deepcopy(self.scenes[i][1]), copy.deepcopy(self.scenes[i][2])
         self.scene_active, self.scene_modified = i, False
         self.revision += 1
+        await self.broadcast(dict(self.state_json(), type="state"))
         await self.broadcast(dict(self.scenes_json(), type="scenes"))
         return web.json_response({"index": i, "name": self.scenes[i][0]})
 
     async def post_notify(self, request):
-        if not self.authorized(request):
-            return self.denied()
         if not self.can_notify:
-            return web.json_response({"error": "notfound"}, status=404)
+            return error(404, "notfound")
         self.notifications.append((request.path, await request.json()))
         return web.json_response({})
 
     async def ok(self, request):
         return web.json_response({})
 
-    async def broadcast(self, msg: dict) -> None:
+    # ---- WebSocket
+    async def broadcast(self, msg: dict, origin: web.WebSocketResponse | None = None) -> None:
+        """To every client but the one whose own change this is: that one knows what it said."""
         for ws in list(self.clients):
-            await ws.send_json(msg)
+            if ws is not origin:
+                await ws.send_json(msg)
 
     async def status(self) -> None:
         await self.broadcast(dict(self.info_json(), type="status"))
 
     async def ws(self, request):
-        if not self.authorized(request):
-            return self.denied()
         ws = web.WebSocketResponse()
         await ws.prepare(request)
+        if not self.authorized(request):
+            await ws.send_json({"type": "error", "error": "auth", "scope": "control"})
+            await ws.close()
+            return ws
         self.clients.add(ws)
         await ws.send_json(dict(self.info_json(), type="status"))
         try:
             async for msg in ws:
-                if msg.type == WSMsgType.TEXT:
-                    m = json.loads(msg.data)
-                    if m.get("type") == "set":
-                        await self.set(m["path"], m["value"])
+                if msg.type != WSMsgType.TEXT:
+                    continue
+                m = json.loads(msg.data)
+                kind = m.pop("type", None)
+                try:
+                    if kind == "lamp":
+                        await self.patch_lamp(m, ws)
+                    elif kind == "screen":
+                        await self.patch_screen(m.pop("index"), m, ws)
+                except Refused as err:
+                    await ws.send_json({"type": "error", "error": "request", "message": str(err)})
         finally:
             self.clients.discard(ws)
         return ws

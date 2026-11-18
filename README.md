@@ -1,6 +1,8 @@
 # Lichtschnitzel für Home Assistant
 
-Bindet [Lichtschnitzel](https://github.com/pfedan/lichtschnitzel)-LED-Controller (ESP32-S3) in Home Assistant ein. Die Integration spricht die eigene HTTP- und WebSocket-API der Lampe (`firmware-esp32/API.md`): eine WebSocket-Verbindung pro Lampe hält alles live, ohne Polling, ohne MQTT.
+Bindet [Lichtschnitzel](https://github.com/pfedan/lichtschnitzel)-LED-Controller (ESP32-S3) in Home Assistant ein. Die Integration spricht die eigene HTTP- und WebSocket-API der Lampe (`firmware/API.md`, Version 2): eine WebSocket-Verbindung pro Lampe hält alles live, ohne Polling, ohne MQTT.
+
+**Ab Version 0.6 braucht die Integration eine Lampe mit API-Version 2** (die neu geschriebene Firmware). Firmware, Web-UI der Lampe und Integration gehören zusammen: erst die Lampe aktualisieren, dann die Integration. Eine Lampe mit älterer Firmware wird nicht eingerichtet und sagt in der Integrationsliste, warum; für sie Version 0.5 behalten.
 
 ## Installation
 
@@ -12,20 +14,20 @@ Ein Gerät pro Lampe, darin:
 
 | Entity | Typ | Was sie tut |
 | --- | --- | --- |
-| Lampe | `light` | Hauptschalter und Master-Helligkeit (`FramebufferManager/On`, `Brightness`). Aus pausiert alle Effekte. |
+| Lampe | `light` | Hauptschalter und Master-Helligkeit der Lampe. Aus pausiert alle Effekte. |
 | Screen *n* (oder sein Name) | `light` | An/Aus, Helligkeit, Effekt aus der Effektliste. Aus gibt die Effekt-Instanz frei, die Parameter bleiben gemerkt. |
 | Szene | `select` | Die Szenen der Lampe (benannte Sätze aller Screens) nach Name; Auswählen schaltet um. Hat sich seit dem Umschalten ein Screen geändert, zeigt sie keine Auswahl (Attribut `modified`), so lässt sich die Szene erneut wählen. |
-| … nächstes Preset | `button` | `next-preset` des Screens |
+| … nächstes Preset | `button` | `next-preset` des Screens; `unavailable`, wenn der Effekt keine Presets hat |
 | … gespiegelt, … default values | `switch`, `button` | Konfiguration je Screen |
 | Effektparameter | `number`, Farben als `light` | je Screen, Effekt und Parameter; standardmäßig deaktiviert, in der Entity-Liste einschalten |
 | Zustand speichern, Neustart | `button` | `POST /api/save`, `/api/reboot` (Neustart standardmäßig aus) |
 | LED-Strom, Strombudget, USB-PD, WLAN, … | `sensor`, `binary_sensor` | aus dem Status der Lampe, gerundet, damit die Datenbank nicht jede Sekunde wächst |
 
-Screens sind feste Plätze (0 bis 15). Ein Screen bekommt Entities, sobald er LEDs hat; verliert er sie, werden seine Entities `unavailable`, aber nicht gelöscht, so bleiben Namen, Räume und Automationen erhalten. Benannt werden sie nach dem Namen des Screens (`Label`, in der Web-UI unter Einstellungen → Screens), sonst „Screen *n*“.
+Screens sind feste Plätze (0 bis 15). Ein Screen bekommt Entities, sobald er LEDs hat; verliert er sie, werden seine Entities `unavailable`, aber nicht gelöscht, so bleiben Namen, Räume und Automationen erhalten. Benannt werden sie nach dem Namen des Screens (`label`, in der Web-UI unter Einstellungen → Screens), sonst „Screen *n*“.
 
-Effektparameter-Entities hängen an Screen und Effekt (`number.<lampe>_flur_aurora_speed`). Zeigt der Screen gerade einen anderen Effekt, ist die Entity `unavailable`.
+Effektparameter-Entities hängen an Screen und Effekt (`number.<lampe>_flur_aurora_speed`). Zeigt der Screen gerade einen anderen Effekt, ist die Entity `unavailable`; kommt der Effekt zurück, hat er die Werte, die der Screen sich gemerkt hat.
 
-Braucht die Firmware mit `On`, `Brightness`, `Label` und `revision` (lichtschnitzel ab dem PR „Home Assistant: An/Aus, Helligkeit, Namen“). Ältere Firmware geht auch, dann ohne Helligkeit; Aus setzt dort den Effekt auf „keiner“.
+Beim Umstieg von Version 0.5 bleiben alle Entities, ihre Namen und ihre Historie erhalten. Die Parameter-Entities bekommen dabei intern neue Kennungen (Effekt und Parameter heißen jetzt nach ihren IDs, etwa `aurora` und `speed`), die Entity-IDs ändern sich nicht. Eine Entity zu einem Parameter, den es in der neuen Firmware nicht mehr gibt, bleibt als „nicht mehr bereitgestellt“ stehen und kann von Hand gelöscht werden.
 
 ## Die Lichtschnitzel-Karte
 
@@ -41,18 +43,18 @@ entities:                  # oder entity: light.lampe_screen_0
 
 Nach dem Update der Integration einmal die Seite im Browser neu laden, damit die neue Karte ankommt.
 
-Die Karte nutzt das Attribut `parameters` der Screen-Leuchte (Name, Typ, Wert, Grenzen; nicht in der Datenbank gespeichert) und den Dienst `lichtschnitzel.set_parameter`, der auch in Automationen geht:
+Die Karte nutzt das Attribut `parameters` der Screen-Leuchte (je Parameter `key`, `name`, `group`, `type`, `value`, `min`, `max`; nicht in der Datenbank gespeichert) und den Dienst `lichtschnitzel.set_parameter`, der auch in Automationen geht:
 
 ```yaml
 action: lichtschnitzel.set_parameter
 target:
   entity_id: light.lampe_screen_0
 data:
-  parameter: Speed           # Unterobjekte mit /, z. B. Flying Emitters/Period Length
+  parameter: speed           # die ID des Parameters, wie sie im Attribut parameters als key steht
   value: 1.5                 # Farben als [r, g, b] oder "#rrggbb"
 ```
 
-Der Wert wird auf die Grenzen des Parameters begrenzt. Zeigt der Screen den Effekt eines anderen Screens, setzt der Dienst den Parameter dort.
+Der Wert wird auf die Grenzen des Parameters begrenzt. Zeigt der Screen den Effekt eines anderen Screens, setzt der Dienst den Parameter dort. Die Namen aus der Zeit vor API-Version 2 (`Speed`, `Flying Emitters/Period Length`) versteht der Dienst weiter, bestehende Automationen laufen also unverändert.
 
 ## Szenen
 
@@ -68,7 +70,7 @@ data:
 
 Ändert sich danach ein Screen, zeigt die Entity die Szene weiter an, als „<Name> (geändert)“; die Szene mit ihrem Namen noch einmal wählen lädt sie neu. Der Knopf `button.<lampe>_szene_uberschreiben` speichert den momentanen Zustand in die zuletzt gewählte Szene (braucht das Passwort für `settings`, wenn eins gesetzt ist).
 
-Hauptschalter und Helligkeit der Lampe bleiben beim Umschalten, wie sie sind. Wie jede Änderung gilt eine Szene nach einem Neustart der Lampe erst, wenn sie gespeichert wurde („Zustand speichern“). Firmware ohne Szenen: die Entity ist `unavailable`.
+Hauptschalter und Helligkeit der Lampe bleiben beim Umschalten, wie sie sind. Wie jede Änderung gilt eine Szene nach einem Neustart der Lampe erst, wenn sie gespeichert wurde („Zustand speichern“).
 
 ## Benachrichtigungen
 
@@ -92,7 +94,7 @@ automation:
           start: -6              # optional: nur die letzten sechs LEDs des Screens
 ```
 
-`period` (Sekunden) setzt die Geschwindigkeit von Blinken, Pulsieren, Lauflicht und Pendel (hin und her), `length` die Breite des Abschnitts. Die Benachrichtigung erscheint auch, wenn der Screen oder die Lampe aus ist, mit ihrer eigenen Helligkeit. Benachrichtigungen und Anzeigen brauchen eine Firmware ab lichtschnitzel#64, das Pendel (`bounce`) eine ab lichtschnitzel#66.
+`period` (Sekunden) setzt die Geschwindigkeit von Blinken, Pulsieren, Lauflicht und Pendel (hin und her), `length` die Breite des Abschnitts. Die Benachrichtigung erscheint auch, wenn der Screen oder die Lampe aus ist, mit ihrer eigenen Helligkeit.
 
 ## Stehende Anzeigen
 
@@ -144,7 +146,7 @@ Benachrichtigungen liegen kurz über den Anzeigen. Anzeigen werden nicht gespeic
 Das Effektlabor (der digitale Zwilling im Browser) lässt sich über eine kleine Brücke als Lampe ins Netz stellen:
 
 ```sh
-python3 firmware-esp32/tools/lab_bridge.py      # im lichtschnitzel-Repo, Port 8081
+python3 firmware/tools/lab_bridge.py      # im lichtschnitzel-Repo, Port 8081
 ```
 
 Dann im Labor (Panel „Web-UI der Lampe“ → „Im Netz“) mit `ws://127.0.0.1:8081/lab` verbinden, oder das Labor mit `?bridge=ws://127.0.0.1:8081/lab` öffnen. In Home Assistant die Adresse dieses Rechners mit Port 8081 eintragen; mit `pip install zeroconf` wird die Brücke auch automatisch gefunden. Die Brücke muss auf dem Rechner laufen, auf dem der Browser läuft.
@@ -156,7 +158,9 @@ Die 3D-Szenen (`scenes.html`) verbinden sich genauso; die Adresse merkt sich der
 ```sh
 pip install -r requirements_test.txt
 pytest                                          # gegen eine Fake-Lampe in den Tests
-LICHTSCHNITZEL_LIVE=127.0.0.1:8081 pytest       # zusätzlich gegen Labor, Mock oder echte Lampe
+LICHTSCHNITZEL_LIVE=127.0.0.1:8080 pytest       # zusätzlich gegen Simulator, Labor oder echte Lampe
 ```
+
+Der Simulator ist die Firmware selbst als Programm für den Rechner (`lz_sim` im lichtschnitzel-Repo, siehe dort `firmware/README.md`); mit `LICHTSCHNITZEL_PASSWORD` geht der Test auch gegen eine Lampe mit Passwort.
 
 `custom_components/lichtschnitzel/api.py` ist der Client für die Lampen-API und hängt nur an aiohttp, `hub.py` hält den Zustand einer Lampe, die Plattformen (`light.py`, `number.py`, …) bilden ihn auf Entities ab.
