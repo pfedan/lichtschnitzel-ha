@@ -29,13 +29,15 @@
       "invalid_auth": "Wrong password.",
       "password_needed": "The lamp needs a password for control.",
       "unknown": "The lamp answered with an error.",
-      "unsupported_firmware": "The lamp's firmware is too old or too new for this integration (it needs API version 2). Update the firmware and its web UI."
+      "unsupported_firmware": "The lamp's firmware is too old or too new for this integration (it needs API version 2). Update the firmware and its web UI.",
+      "homeassistant_off": "Home Assistant is switched off on the lamp. Switch it on in the lamp's web UI under Settings, Home Assistant, then try again."
     },
     "abort": {
       "already_configured": "This lamp is already set up.",
       "cannot_connect": "The lamp is not reachable.",
       "reauth_successful": "Password updated.",
-      "unsupported_firmware": "The lamp's firmware is too old or too new for this integration (it needs API version 2). Update the firmware and its web UI."
+      "unsupported_firmware": "The lamp's firmware is too old or too new for this integration (it needs API version 2). Update the firmware and its web UI.",
+      "homeassistant_off": "Home Assistant is switched off on the lamp. Switch it on in the lamp's web UI under Settings, Home Assistant, then try again."
     }
   },
   "entity": {

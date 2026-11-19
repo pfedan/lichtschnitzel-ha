@@ -35,3 +35,13 @@ async def test_unreachable(hass: HomeAssistant, socket_enabled) -> None:
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": "127.0.0.1", "port": 1})
     assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_home_assistant_switched_off(hass: HomeAssistant, lamp: FakeLamp) -> None:
+    lamp.ha_enabled = False
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": "127.0.0.1", "port": lamp.port})
+    assert result["errors"] == {"base": "homeassistant_off"}
+    lamp.ha_enabled = True
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": "127.0.0.1", "port": lamp.port})
+    assert result["type"] is FlowResultType.CREATE_ENTRY

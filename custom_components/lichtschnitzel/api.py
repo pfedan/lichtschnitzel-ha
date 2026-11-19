@@ -31,6 +31,10 @@ class AuthFailed(LichtschnitzelError):
     """The lamp wants a password for "control", and the one given is missing or wrong."""
 
 
+class HomeAssistantOff(LichtschnitzelError):
+    """Home Assistant is switched off in the lamp's settings: it refuses every request from here."""
+
+
 class UnsupportedFirmware(LichtschnitzelError):
     """The lamp speaks another version of the API than this integration."""
 
@@ -79,6 +83,8 @@ class LichtschnitzelClient:
                     err = data if isinstance(data, dict) else {}
                     if path == "/api/login" and resp.status == 401:
                         raise AuthFailed(err.get("message") or "wrong password", "password", 401)
+                    if resp.status == 403 and err.get("error") == "homeassistant":
+                        raise HomeAssistantOff(err.get("message") or "Home Assistant is switched off on the lamp", "homeassistant", 403)
                     raise LichtschnitzelError(err.get("message") or f"HTTP {resp.status}", err.get("error", ""), resp.status)
                 return data
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as err:

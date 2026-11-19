@@ -9,7 +9,7 @@ from typing import Any
 
 import aiohttp
 
-from .api import AuthFailed, LichtschnitzelClient, LichtschnitzelError
+from .api import AuthFailed, HomeAssistantOff, LichtschnitzelClient, LichtschnitzelError
 from .const import NUM_SCREENS
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,6 +42,7 @@ class LichtschnitzelHub:
         self._reload: asyncio.TimerHandle | None = None
         self._settled = False  # the first status after connecting confirmed the revision
         self._batches: dict[str, dict] = {}
+        self._off_logged = False  # "switched off" was logged, until the next connection
 
     # ---- lifecycle
     async def async_load(self) -> None:
@@ -79,6 +80,7 @@ class LichtschnitzelHub:
                 first = False
                 self._settled = False
                 self._ws = await self.client.ws_connect()
+                self._off_logged = False
                 self._set_connected(True)
                 delay = 1
                 await self._listen(self._ws)
@@ -86,6 +88,11 @@ class LichtschnitzelHub:
                 raise
             except AuthFailed as err:
                 _LOGGER.warning("Lichtschnitzel %s: login failed: %s", self.client.host, err)
+            except HomeAssistantOff:
+                # Switched off in the lamp's settings: keep trying, it may be switched on again.
+                if not self._off_logged:
+                    _LOGGER.warning("Lichtschnitzel %s: Home Assistant is switched off in the lamp's settings", self.client.host)
+                    self._off_logged = True
             except LichtschnitzelError as err:
                 _LOGGER.debug("Lichtschnitzel %s: %s", self.client.host, err)
             except Exception:  # keep the connection loop alive whatever the lamp sends
@@ -123,6 +130,9 @@ class LichtschnitzelHub:
             elif kind == "scenes":
                 self.scenes = {k: v for k, v in data.items() if k != "type"}
                 self._notify()
+            elif kind == "error" and data.get("error") == "homeassistant":
+                # Switched off in the lamp's settings while connected: the lamp closes the socket.
+                raise HomeAssistantOff(data.get("message") or "switched off", "homeassistant", 403)
             elif kind == "error" and data.get("error") == "auth":
                 # A lamp without a valid token for "control" says so and closes; log in for the next try.
                 self.client.token = None
