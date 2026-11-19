@@ -8,6 +8,8 @@ Bindet [Lichtschnitzel](https://github.com/pfedan/lichtschnitzel)-LED-Controller
 
 Ab Home Assistant 2026.11 über den eingebauten [Marketplace](https://www.home-assistant.io/integrations/marketplace/) (ersetzt HACS): *Einstellungen → Marketplace*, oben rechts „Add from link“ (in der deutschen Oberfläche entsprechend übersetzt), `pfedan/lichtschnitzel-ha` eintragen (Typ Integration), dann auf der Seite des Repositorys installieren. Auf älteren Versionen über HACS als benutzerdefiniertes Repository (Typ Integration). Oder `custom_components/lichtschnitzel` in den `config`-Ordner von Home Assistant kopieren. Nach einem Neustart findet Home Assistant Lampen im Netz von selbst (mDNS `_lichtschnitzel._tcp`); sonst unter *Einstellungen → Geräte & Dienste → Integration hinzufügen → Lichtschnitzel* die Adresse eingeben. Ein Passwort braucht es nur, wenn die Lampe eins für die Steuerung (`control`) hat.
 
+**Home Assistant muss an der Lampe eingeschaltet sein:** in der Web-UI der Lampe unter *Einstellungen → Home Assistant → An*. Eine neu geflashte Lampe hat es aus, eine Lampe, die per Update von einer Firmware ohne diesen Schalter kommt, behält es an. Ist es aus, lehnt die Lampe Home Assistant ab: die Einrichtung sagt das, eine eingerichtete Lampe wird nicht verfügbar und kommt von selbst zurück, sobald der Schalter wieder an ist.
+
 ## Was in Home Assistant ankommt
 
 Ein Gerät pro Lampe, darin:
@@ -161,6 +163,6 @@ pytest                                          # gegen eine Fake-Lampe in den T
 LICHTSCHNITZEL_LIVE=127.0.0.1:8080 pytest       # zusätzlich gegen Simulator, Labor oder echte Lampe
 ```
 
-Der Simulator ist die Firmware selbst als Programm für den Rechner (`lz_sim` im lichtschnitzel-Repo, siehe dort `firmware/README.md`); mit `LICHTSCHNITZEL_PASSWORD` geht der Test auch gegen eine Lampe mit Passwort.
+Der Simulator ist die Firmware selbst als Programm für den Rechner (`lz_sim --home-assistant` im lichtschnitzel-Repo, siehe dort `firmware/README.md`; ohne `--home-assistant` lehnt er Home Assistant ab wie eine neue Lampe); mit `LICHTSCHNITZEL_PASSWORD` geht der Test auch gegen eine Lampe mit Passwort.
 
 `custom_components/lichtschnitzel/api.py` ist der Client für die Lampen-API und hängt nur an aiohttp, `hub.py` hält den Zustand einer Lampe, die Plattformen (`light.py`, `number.py`, …) bilden ihn auf Entities ab.

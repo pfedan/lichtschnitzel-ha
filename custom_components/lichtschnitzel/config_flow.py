@@ -15,7 +15,15 @@ try:
 except ImportError:  # Home Assistant before 2025.1
     from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
-from .api import API_VERSION, AuthFailed, CannotConnect, LichtschnitzelClient, LichtschnitzelError, UnsupportedFirmware
+from .api import (
+    API_VERSION,
+    AuthFailed,
+    CannotConnect,
+    HomeAssistantOff,
+    LichtschnitzelClient,
+    LichtschnitzelError,
+    UnsupportedFirmware,
+)
 from .const import CONF_PASSWORD, DEFAULT_PORT, DOMAIN
 
 
@@ -49,6 +57,8 @@ class LichtschnitzelConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_PASSWORD] = "invalid_auth" if password else "password_needed"
             except CannotConnect:
                 errors["base"] = "cannot_connect"
+            except HomeAssistantOff:
+                errors["base"] = "homeassistant_off"
             except UnsupportedFirmware:
                 errors["base"] = "unsupported_firmware"
             except LichtschnitzelError:
@@ -70,6 +80,8 @@ class LichtschnitzelConfigFlow(ConfigFlow, domain=DOMAIN):
         self._name = (discovery_info.properties or {}).get("name") or discovery_info.name.split(".")[0]
         try:
             info = await LichtschnitzelClient(async_get_clientsession(self.hass), self._host, self._port).info()
+        except HomeAssistantOff:
+            return self.async_abort(reason="homeassistant_off")
         except LichtschnitzelError:
             return self.async_abort(reason="cannot_connect")
         if info.get("api") != API_VERSION:
@@ -90,6 +102,8 @@ class LichtschnitzelConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_PASSWORD] = "invalid_auth" if password else "password_needed"
             except UnsupportedFirmware:
                 return self.async_abort(reason="unsupported_firmware")
+            except HomeAssistantOff:
+                errors["base"] = "homeassistant_off"
             except LichtschnitzelError:
                 errors["base"] = "cannot_connect"
             else:

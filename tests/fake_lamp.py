@@ -48,6 +48,7 @@ class FakeLamp:
         self.notifications: list[tuple[str, dict]] = []  # (path, body) of POST /api/notify and /api/indicators
         self.indicator_count = 0  # "indicators" of /api/info
         self.can_notify = True  # False: the request fails with 404
+        self.ha_enabled = True  # False: Home Assistant is switched off in the lamp's settings
         self.scenes: dict[int, tuple[str, list, list]] = {}  # index -> (name, screens, what they remember)
         self.scene_active: int | None = None
         self.scene_modified = False
@@ -63,7 +64,7 @@ class FakeLamp:
         self.screens[1].update(begin=100, length=50)
         self.show(0, "aurora")
         self.show(1, "single_color")
-        app = web.Application()
+        app = web.Application(middlewares=[self.ha_switch])
         app.router.add_get("/api/info", self.get_info)
         app.router.add_get("/api/effects", self.guarded(lambda r: web.json_response(EFFECTS)))
         app.router.add_get("/api/state", self.guarded(self.get_state))
@@ -156,6 +157,27 @@ class FakeLamp:
         return dict(self.lamp, revision=self.revision)
 
     # ---- access
+    @web.middleware
+    async def ha_switch(self, request, handler):
+        """While Home Assistant is switched off, the lamp refuses it (here: every client)."""
+        if self.ha_enabled or not request.path.startswith("/api/"):
+            return await handler(request)
+        if request.path == "/api/ws":
+            ws = web.WebSocketResponse()
+            await ws.prepare(request)
+            await ws.send_json({"type": "error", "error": "homeassistant", "message": "Home Assistant is switched off on this lamp"})
+            await ws.close()
+            return ws
+        return error(403, "homeassistant", "Home Assistant is switched off on this lamp")
+
+    async def switch_ha(self, on: bool) -> None:
+        """As PUT /api/homeassistant in the lamp's web UI: switching off closes the WebSockets."""
+        self.ha_enabled = on
+        if not on:
+            for ws in list(self.clients):
+                await ws.send_json({"type": "error", "error": "homeassistant", "message": "Home Assistant is switched off on this lamp"})
+                await ws.close()
+
     def authorized(self, request: web.Request) -> bool:
         if not self.password:
             return True

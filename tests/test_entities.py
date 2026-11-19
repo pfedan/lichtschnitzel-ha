@@ -5,9 +5,14 @@ import asyncio
 
 import pytest
 import voluptuous as vol
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.lichtschnitzel.const import DOMAIN
 
 from .fake_lamp import FakeLamp
 
@@ -363,3 +368,22 @@ async def test_clear_all_indicators(hass: HomeAssistant, lamp: FakeLamp, entry) 
     await wait_for(hass, lambda: hass.states.get("sensor.testlampe_indicators").state == "3")
     await hass.services.async_call("button", "press", {"entity_id": "button.testlampe_clear_indicators"}, blocking=True)
     assert lamp.notifications[-1] == ("/api/indicators/clear", {})
+
+
+async def test_home_assistant_switched_off_and_on(hass: HomeAssistant, lamp: FakeLamp, entry) -> None:
+    # Switched off in the lamp's web UI: the lamp closes the connection and the entities go
+    # unavailable; switched on again, the integration comes back by itself.
+    await connected(hass)
+    await lamp.switch_ha(False)
+    await wait_for(hass, lambda: hass.states.get("light.testlampe_screen_0").state == "unavailable")
+    lamp.ha_enabled = True
+    await wait_for(hass, lambda: hass.states.get("light.testlampe_screen_0").state != "unavailable", 5)
+
+
+async def test_setup_while_switched_off(hass: HomeAssistant, lamp: FakeLamp) -> None:
+    lamp.ha_enabled = False
+    e = MockConfigEntry(domain=DOMAIN, unique_id="aa:bb:cc:dd:ee:ff", data={CONF_HOST: "127.0.0.1", CONF_PORT: lamp.port})
+    e.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(e.entry_id)
+    assert e.state is ConfigEntryState.SETUP_RETRY
+    assert "switched off" in (e.reason or "")

@@ -21,7 +21,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_register_platform_entity_service
 from homeassistant.helpers.typing import ConfigType
 
-from .api import AuthFailed, LichtschnitzelClient, LichtschnitzelError
+from .api import AuthFailed, HomeAssistantOff, LichtschnitzelClient, LichtschnitzelError
 from .migrate import async_migrate_unique_ids
 from .const import CARD_URL, CONF_PASSWORD, DEFAULT_PORT, DOMAIN, NOTIFY_PATTERNS, PLATFORMS
 from .hub import LichtschnitzelHub
@@ -140,6 +140,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: LichtschnitzelConfigEntr
         await hub.async_load()
     except AuthFailed as err:
         raise ConfigEntryAuthFailed(str(err)) from err
+    except HomeAssistantOff as err:
+        # Retried until it is switched on in the lamp's web UI (Settings, Home Assistant).
+        raise ConfigEntryNotReady("Home Assistant is switched off in the lamp's settings") from err
     except LichtschnitzelError as err:
         raise ConfigEntryNotReady(str(err)) from err
     entry.runtime_data = hub

@@ -3,6 +3,8 @@ lab_bridge.py; skipped unless LICHTSCHNITZEL_LIVE=<host>[:<port>] is set. Switch
 off and on, changes its effect, brightness and a parameter, and puts everything back.
 
     LICHTSCHNITZEL_LIVE=127.0.0.1:8080 pytest tests/test_live.py
+
+The lamp must let Home Assistant in (web UI: Settings, Home Assistant; lz_sim --home-assistant).
 """
 from __future__ import annotations
 
